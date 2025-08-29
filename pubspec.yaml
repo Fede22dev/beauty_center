@@ -1,0 +1,30 @@
+name: beauty_center # To change visualized name of app use package rename command: rename setAppName --targets ios,android,macos,windows,linux --value "Beauty Center"
+description: "Management app for beauty centers."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  go_router: ^16.2.0
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+flutter_intl:
+  enabled: true

@@ -1,0 +1,9 @@
+{
+  "@@locale": "en",
+  "menu": "Menu",
+  "appointments": "Appointments",
+  "clients": "Clients",
+  "treatments": "Treatments",
+  "stats": "Stats",
+  "settings": "Settings"
+}
