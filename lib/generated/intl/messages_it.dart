@@ -26,7 +26,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "clients": MessageLookupByLibrary.simpleMessage("Clienti"),
     "menu": MessageLookupByLibrary.simpleMessage("Menu"),
     "settings": MessageLookupByLibrary.simpleMessage("Impostazioni"),
-    "stats": MessageLookupByLibrary.simpleMessage("Stats"),
+    "statistics": MessageLookupByLibrary.simpleMessage("Statistiche"),
     "treatments": MessageLookupByLibrary.simpleMessage("Trattamenti"),
   };
 }

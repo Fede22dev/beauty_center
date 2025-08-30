@@ -79,9 +79,9 @@ class S {
     return Intl.message('Treatments', name: 'treatments', desc: '', args: []);
   }
 
-  /// `Stats`
-  String get stats {
-    return Intl.message('Stats', name: 'stats', desc: '', args: []);
+  /// `Statistics`
+  String get statistics {
+    return Intl.message('Statistics', name: 'statistics', desc: '', args: []);
   }
 
   /// `Settings`

@@ -1,9 +1,11 @@
+import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/app_routes.dart';
-import 'core/theme/app_theme.dart';
 import 'generated/l10n.dart';
 import 'home/home.dart';
 
@@ -11,13 +13,20 @@ class BeautyCenterApp extends StatelessWidget {
   BeautyCenterApp({super.key});
 
   final _router = GoRouter(
-    initialLocation: '${AppRoutes.home.path}${AppRoutes.appointments.path}',
+    initialLocation: kDefaultRoute.path,
+    redirect: (context, state) {
+      final segments = state.uri.pathSegments;
+      if (segments.isEmpty) return kDefaultRoute.path;
+      if (!isValidTabSegment(segments.first)) return kDefaultRoute.path;
+      return null;
+    },
     routes: [
       GoRoute(
-        path: '${AppRoutes.home.path}/:tab',
+        path: '/:tab',
         pageBuilder: (context, state) {
-          final tab = state.pathParameters['tab'] ?? 'appointments';
-          return MaterialPage(child: Home(initialTab: tab));
+          return MaterialPage(
+            child: Home(initialSegment: kDefaultRoute.segment),
+          );
         },
       ),
     ],
@@ -25,20 +34,32 @@ class BeautyCenterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      localizationsDelegates: [
-        S.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: S.delegate.supportedLocales,
-      title: 'Beauty Center',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
-      debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+    return ScreenUtilInit(
+      designSize: const Size(390, 844), // Medium phone baseline
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (_, _) {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
+
+        return MaterialApp.router(
+          title: 'Beauty Center',
+          debugShowCheckedModeBanner: false,
+          localizationsDelegates: const [
+            S.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: S.delegate.supportedLocales,
+          theme: FlexThemeData.light(scheme: FlexScheme.purpleM3),
+          darkTheme: FlexThemeData.dark(scheme: FlexScheme.purpleM3),
+          themeMode: ThemeMode.system,
+          routerConfig: _router,
+        );
+      },
     );
   }
 }

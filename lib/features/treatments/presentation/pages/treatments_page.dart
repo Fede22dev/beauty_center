@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 
-class TreatmentsPage extends StatelessWidget {
+class TreatmentsPage extends StatefulWidget {
   const TreatmentsPage({super.key});
 
   @override
+  State<TreatmentsPage> createState() => _TreatmentsPageState();
+}
+
+class _TreatmentsPageState extends State<TreatmentsPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
+    print('TreatmentsPage bui');
     return const Center(child: Text('trats'));
   }
 }
