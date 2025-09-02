@@ -1,0 +1,162 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'   # es. v1.2.3
+
+env:
+  APP_NAME: Beauty Center
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        flutter: [stable]
+
+    steps:
+      # Harden security
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      # Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Check code formatting
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      # Setup Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.flutter }}
+
+      # Cache pub dependencies
+      - name: Cache Pub
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            .dart-tool
+            .packages
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
+      # Install dependencies
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      # Check dependencies vulnerabilities
+      - name: Scan for dependencies vulnerabilities
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: --lockfile=pubspec.lock
+
+      # Run analyzer
+      - name: Analyze code
+        run: flutter analyze
+
+      # Run test
+      - name: Run tests
+        run: flutter test --coverage
+        continue-on-error: true
+
+      # Build targets
+      - name: Build Android APK
+        if: runner.os != 'macOS'
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle
+        if: runner.os != 'macOS'
+        run: flutter build appbundle --release
+
+      - name: Build iOS (no codesign)
+        if: runner.os == 'macOS'
+        run: flutter build ios --release --no-codesign
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: flutter build macos --release
+
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: flutter build windows --release
+
+      - name: Build Linux
+        if: runner.os == 'Linux'
+        run: flutter build linux --release
+
+      # Upload artifacts
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ runner.os }}-artifacts
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
+            build/ios/ipa/*.ipa
+            build/macos/Build/Products/Release/*.app
+            build/windows/runner/Release/*.exe
+            build/linux/x64/release/bundle/*
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      # Checkout repo to generate changelog
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./artifacts
+
+      # Extract version from tag
+      - name: Extract version
+        run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      # Generate changelog between last tag and current
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v2
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "🚀 ${{ env.APP_NAME }} ${{ env.APP_VERSION }}"
+          body: |
+            ## 🚀 Release ${{ env.APP_NAME }} ${{ env.APP_VERSION }}
+
+            **🔖 Version:** `${{ env.APP_VERSION }}`
+            **🔗 Commit:** `${{ github.sha }}`
+            **📅 Date:** ${{ github.event.head_commit.timestamp }}
+
+            ### 📋 Changelog
+            ${{ steps.changelog.outputs.content }}
+
+            ### 📦 Included Artifacts
+            Build outputs for Android, iOS, Windows, macOS, Linux.
+
+            ---
+            _Generated automatically by CI/CD pipeline._
+          files: ./artifacts/**
