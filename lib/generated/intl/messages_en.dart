@@ -25,6 +25,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "appointments": MessageLookupByLibrary.simpleMessage("Appointments"),
     "clients": MessageLookupByLibrary.simpleMessage("Clients"),
     "menu": MessageLookupByLibrary.simpleMessage("Menu"),
+    "offlineBanner": MessageLookupByLibrary.simpleMessage(
+      "You are currently offline!",
+    ),
+    "onlineBanner": MessageLookupByLibrary.simpleMessage("You are online!"),
     "settings": MessageLookupByLibrary.simpleMessage("Settings"),
     "statistics": MessageLookupByLibrary.simpleMessage("Statistics"),
     "treatments": MessageLookupByLibrary.simpleMessage("Treatments"),

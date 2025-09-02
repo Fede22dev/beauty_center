@@ -59,6 +59,26 @@ class S {
     return Intl.message('Menu', name: 'menu', desc: '', args: []);
   }
 
+  /// `You are online!`
+  String get onlineBanner {
+    return Intl.message(
+      'You are online!',
+      name: 'onlineBanner',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `You are currently offline!`
+  String get offlineBanner {
+    return Intl.message(
+      'You are currently offline!',
+      name: 'offlineBanner',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Appointments`
   String get appointments {
     return Intl.message(

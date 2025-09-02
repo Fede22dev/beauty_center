@@ -1,0 +1,84 @@
+# Configuration for git-cliff (automatic changelog)
+
+[git]
+# Collects the commits from the repository
+conventional_commits = true
+filter_unconventional = true
+tag_pattern = "v[0-9]*"
+ignore_tags = ["v0.0.0"]
+commit_parsers = [
+    { message = "^feat", group = "✨ Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^docs", group = "📝 Documentation" },
+    { message = "^style", group = "💄 Style" },
+    { message = "^refactor", group = "🧹 Refactors" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^test", group = "✅ Tests" },
+    { message = "^build", group = "📦 Build System" },
+    { message = "^ci", group = "🔧 CI/CD" },
+    { message = "^chore", group = "🔨 Miscellaneous" },
+    { message = "^revert", group = "⏪ Reverts" },
+]
+
+# If a commission is not matching anything, it is put here
+unmatched_group = "🔍 Other"
+
+[git.commit_preprocessors]
+# Removes the prefix from messages like "feat: ..." → "..."
+"^feat: " = ""
+"^fix: " = ""
+"^docs: " = ""
+"^style: " = ""
+"^refactor: " = ""
+"^perf: " = ""
+"^test: " = ""
+"^build: " = ""
+"^ci: " = ""
+"^chore: " = ""
+"^revert: " = ""
+
+[changelog]
+# Title changelog
+header = """
+# 📦 Changelog
+"""
+
+# Footer for every release
+footer = """
+---
+_Generated automatically by CI/CD pipeline with [git-cliff](https://github.com/orhun/git-cliff)._
+"""
+
+# Group viewing order
+sort_commits = "group"
+
+# Template for a single release
+body = """
+## 🚀 Version {{ version }} ({{ timestamp | date("yyyy-MM-dd") }})
+
+{% if groups %}
+{% for group, commits in groups %}
+### {{ group }}
+{% for commit in commits %}
+- {{ commit.message }} ({{ commit.id | truncate(7) }})
+{% endfor %}
+{% endfor %}
+{% else %}
+- No notable changes
+{% endif %}
+"""
+
+# Template for Unreleased (before the first tag)
+unreleased = """
+## 🧪 Unreleased
+{% if groups %}
+{% for group, commits in groups %}
+### {{ group }}
+{% for commit in commits %}
+- {{ commit.message }} ({{ commit.id | truncate(7) }})
+{% endfor %}
+{% endfor %}
+{% else %}
+- No notable changes
+{% endif %}
+"""

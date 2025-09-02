@@ -9,13 +9,20 @@ class ClientsPage extends StatefulWidget {
 
 class _ClientsPageState extends State<ClientsPage>
     with AutomaticKeepAliveClientMixin {
+  final ScrollController _scroll = ScrollController();
+
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => true; // Keep this page alive.
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-    print('clients page');
-    return const Center(child: Text('cli'));
+    super.build(context); // Required when using AutomaticKeepAliveClientMixin.
+    print('ClientsPage build');
+    return ListView.builder(
+      key: const PageStorageKey('clients_list'), // Preserve scroll offset.
+      controller: _scroll,
+      itemCount: 100,
+      itemBuilder: (_, i) => ListTile(title: Text('Client #$i')),
+    );
   }
 }

@@ -1,6 +1,8 @@
 {
   "@@locale": "it",
   "menu": "Menu",
+  "onlineBanner": "Sei online!",
+  "offlineBanner": "Sei attualmente offline!",
   "appointments": "Appuntamenti",
   "clients": "Clienti",
   "treatments": "Trattamenti",
