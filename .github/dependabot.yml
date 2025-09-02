@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Dart/Flutter package update
+  - package-ecosystem: "pub"
+    directory: "/"  # Path to pubspec.yaml
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+    #open-pull-requests-limit: 10
+    reviewers:
+      - "Fede22dev"
+    assignees:
+      - "Fede22dev"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "flutter"
+
+  # GitHub Actions workflow update
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+    #open-pull-requests-limit: 5
+    reviewers:
+      - "Fede22dev"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
