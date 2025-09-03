@@ -138,7 +138,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils
 
       # Build Android (Ubuntu only to avoid duplication)
       - name: Build Android APK
@@ -156,7 +156,9 @@ jobs:
         run: |
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
-          Compress-Archive -Path "build/windows/runner/Release/*" -DestinationPath "build/windows/${env:APP_NAME}.zip"
+          $src = "build/windows/x64/runner/Release/*"
+          $dst = "build/windows/${env:APP_NAME}.zip"
+          Compress-Archive -Path $src -DestinationPath $dst
 
       # Build Linux
       - name: Build Linux
