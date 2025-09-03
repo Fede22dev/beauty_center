@@ -85,7 +85,12 @@ jobs:
           cache: true
 
       - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses
+        run: yes | flutter doctor --android-licenses || true
+
+      - name: Flutter doctor
+        run: |
+          flutter --version
+          flutter doctor -v
 
       - name: Get dependencies
         run: flutter pub get
@@ -180,11 +185,28 @@ jobs:
           ls -la build/macos/Build/Products/Release/
           
           cd build/macos/Build/Products/Release
-          APP_NAME=$(ls *.app | head -1)
-          echo "Found app: $APP_NAME"
           
+          # Find .app directory (handle names with spaces)
+          APP_PATH=$(find . -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app directory found!"
+            exit 1
+          fi
+          
+          APP_NAME=$(basename "$APP_PATH")
+          echo "Found app: '$APP_NAME'"
+          
+          # Create ZIP with proper quoting
           zip -r macos-app.zip "$APP_NAME"
-          echo "ZIP created, moving to workspace..."
+          echo "ZIP created successfully"
+          
+          # Verify ZIP was created
+          if [ ! -f "macos-app.zip" ]; then
+            echo "Error: ZIP file was not created!"
+            exit 1
+          fi
+          
+          echo "Moving ZIP to workspace..."
           mv macos-app.zip "$GITHUB_WORKSPACE/"
           
           echo "Final check - ZIP in workspace:"
