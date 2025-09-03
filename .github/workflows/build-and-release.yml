@@ -16,8 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-        flutter: [stable]
+        os: [ macos-latest, ubuntu-latest, windows-latest ]
+        flutter: [ stable ]
 
     steps:
       # Harden security
@@ -58,10 +58,10 @@ jobs:
         run: flutter pub get
 
       # Check dependencies vulnerabilities
-      - name: Scan for dependencies vulnerabilities
-        uses: google/osv-scanner-action@v1
-        with:
-          scan-args: --lockfile=pubspec.lock
+      - name: Scan dependencies (OSV-Scanner)
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          osv-scanner scan source --lockfile=pubspec.lock
 
       # Run analyzer
       - name: Analyze code
@@ -99,7 +99,7 @@ jobs:
 
       # Upload artifacts
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-artifacts
           path: |
@@ -114,18 +114,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      # Checkout repo to generate changelog
+      # Checkout repo to generate a changelog
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Download artifacts
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: ./artifacts
 
-      # Extract version from tag
+      # Extract version from the tag
       - name: Extract version
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
