@@ -18,7 +18,7 @@
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.24+-46D1FD.svg?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.5+-0175C2.svg?logo=dart&logoColor=white)](https://dart.dev)
-[![SQLite](https://img.shields.io/badge/Database-SQLite-003B57.svg?logo=sqlite&logoColor=white)](https://www.sqlite.org)
+[![Drift](https://img.shields.io/badge/Database-Drift-0A84FF.svg?logo=sqlite&logoColor=white)](https://drift.simonbinder.eu/)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E.svg?logo=supabase&logoColor=white)](https://supabase.com)
 
 ---
@@ -53,7 +53,6 @@ The app follows **clean architecture** with **Riverpod for state management**:
 - [ ] 🖥️ **Desktop builds** (Windows, Linux, macOS)
 - [ ] 📱 **Mobile builds** (Android, iOS)
 - [ ] 📊 **Client Analytics** & visit history
--
 
 ---
 
@@ -79,4 +78,4 @@ flutter build apk # or ios
 
 ## Author
 
-Made with ❤️ by [![Fede22dev](https://github.com/Fede22dev.png?size=40)](https://github.com/Fede22dev) [Fede22dev](https://github.com/Fede22dev)
+Made with ❤️ by [Fede22dev](https://github.com/Fede22dev)
