@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_NAME: Beauty Center
+  FLUTTER_VERSION: '3.35.2'
 
 jobs:
   verify:
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.2'
+          flutter-version: $FLUTTER_VERSION
 
       - name: Cache Pub
         uses: actions/cache@v3
@@ -106,6 +106,25 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
     steps:
+      - name: Resolve APP_NAME
+        id: app_name
+        shell: bash
+        run: |
+          # Prefer pubspec.yaml app_name, else fallback to repo name, else env
+          NAME_FROM_PUBSPEC=""
+          if [ -f pubspec.yaml ]; then
+            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml | head -n1 | awk '{print \$2}' | tr -d '"' || true)"
+          fi
+          if [ -n "${NAME_FROM_PUBSPEC}" ]; then
+            APP_NAME_RESOLVED="${NAME_FROM_PUBSPEC}"
+          elif [ -n "${APP_NAME:-}" ]; then
+            APP_NAME_RESOLVED="${APP_NAME}"
+          else
+            APP_NAME_RESOLVED="${GITHUB_REPOSITORY##*/}"
+          fi
+          echo "APP_NAME=${APP_NAME_RESOLVED}" | tee -a "$GITHUB_ENV"
+          echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"       
+
       - name: Harden Runner
         uses: step-security/harden-runner@v2
         with:
@@ -119,7 +138,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.2'
+          flutter-version: $FLUTTER_VERSION
 
       - name: Cache Pub
         uses: actions/cache@v3
@@ -137,7 +156,7 @@ jobs:
 
       # Android build prerequisites and Java on non-macOS
       - name: Set up Java 17
-        if: runner.os != 'macOS'
+        if: runner.os == 'Linux'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -230,27 +249,29 @@ jobs:
         shell: bash
         run: flutter build appbundle --release
 
-      # Build Windows
+      # Build Linux
+      - name: Build Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          APP_NAME="${{ steps.app_name.outputs.resolved }}"
+          flutter build linux --release
+          mkdir -p "build/linux"
+          zip -r "build/linux/$APP_NAME.zip" build/linux/x64/release/bundle/*
+
+      ##### Build Windows #####
       - name: Build Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
           $src = "build/windows/x64/runner/Release/*"
           $dst = "build/windows/${env:APP_NAME}.zip"
           Compress-Archive -Path $src -DestinationPath $dst
 
-      # Build Linux
-      - name: Build Linux
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          flutter build linux --release
-          mkdir -p "build/linux"
-          zip -r "build/linux/$APP_NAME.zip" build/linux/x64/release/bundle/*
-
-      # Build iOS (no codesign) + macOS (only on macOS)
+      ##### Build iOS (no codesign) + macOS #####
       - name: Build iOS (no codesign)
         if: runner.os == 'macOS'
         shell: bash
@@ -260,6 +281,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
+          APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build macos --release
           mkdir -p "build/macos"
           app_path="$(ls -d build/macos/Build/Products/Release/*.app | head -n 1)"
@@ -332,76 +354,10 @@ jobs:
 
       - name: Extract version from tag
         id: app_version
-        shell: bash
-        run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
-
-      #      - name: Install git-cliff (robust, add to PATH now + later)
-      #        id: install_git_cliff
-      #        shell: bash
-      #        env:
-      #          GH_TOKEN: ${{ github.token }}
-      #        run: |
-      #          set -euo pipefail
-      #          WORKDIR="$PWD"
-      #          mkdir -p "$WORKDIR/.bin"
-      #          cd "$WORKDIR/.bin"
-      #
-      #          echo "Runner arch: $(uname -m)"
-      #          echo "Trying to download git-cliff release tarball via gh..."
-      #
-      #          # Try common Linux builds, pick the first that works
-      #          for PAT in \
-      #            "git-cliff-*-x86_64-unknown-linux-gnu.tar.gz" \
-      #            "git-cliff-*-x86_64-unknown-linux-musl.tar.gz" \
-      #            "git-cliff-*-aarch64-unknown-linux-gnu.tar.gz" \
-      #            "git-cliff-*-aarch64-unknown-linux-musl.tar.gz"
-      #          do
-      #            echo "Attempting pattern: $PAT"
-      #            if gh release download --repo orhun/git-cliff --pattern "$PAT" --clobber ; then
-      #              TAR="$(ls git-cliff-*.tar.gz | head -n 1)"
-      #              echo "Downloaded: $TAR"
-      #              file -b "$TAR" || true
-      #              tar -xzf "$TAR"
-      #              break
-      #            else
-      #              echo "Pattern $PAT not available, trying next..."
-      #            fi
-      #          done
-      #
-      #          # Locate the binary inside extracted folders
-      #          BIN="$(find . -type f -name git-cliff -perm -u+x | head -n 1 || true)"
-      #          if [ -z "${BIN:-}" ]; then
-      #            echo "git-cliff binary not found after extraction. Dir listing:"
-      #            ls -R .
-      #            exit 1
-      #          fi
-      #
-      #          # Install to repo-local .bin and make available immediately
-      #          install -m 0755 "$BIN" "$WORKDIR/.bin/git-cliff"
-      #
-      #          # Make it available in THIS step
-      #          export PATH="$WORKDIR/.bin:$PATH"
-      #          # Persist for NEXT steps
-      #          echo "$WORKDIR/.bin" >> "$GITHUB_PATH"
-      #
-      #          echo "which git-cliff => $(which git-cliff || echo 'not found')"
-      #          echo "git-cliff version:"
-      #          git-cliff --version
-      #
-      #      - name: Generate changelog with git-cliff action
-      #        uses: orhun/git-cliff-action@v3
-      #        with:
-      #          #config: cliff.toml
-      #          args: --latest --strip header
-      #        env:
-      #          OUTPUT: CHANGELOG.md
-      #
-      #      - name: Preview changelog (debug)
-      #        id: preview_changelog
-      #        shell: bash
-      #        run: |
-      #          echo "First 60 lines of CHANGELOG.md"
-      #          head -n 60 CHANGELOG.md || true
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "clean=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Format commit date (UTC)
         id: format_date
@@ -425,37 +381,37 @@ jobs:
           find artifacts -type f | sort || true
           
           # Android APK(s)
-          for f in artifacts/**/app/outputs/flutter-apk/*.apk; do
+          for f in artifacts/**/build/app/outputs/flutter-apk/*.apk; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-android-${base}"
           done
           
           # Android AAB(s)
-          for f in artifacts/**/app/outputs/bundle/release/*.aab; do
+          for f in artifacts/**/build/app/outputs/bundle/release/*.aab; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-android-${base}"
           done
           
           # iOS IPA(s)
-          for f in artifacts/**/ios/ipa/*.ipa; do
+          for f in artifacts/**/build/ios/ipa/*.ipa; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-ios-${base}"
           done
           
           # Windows ZIP(s)
-          for f in artifacts/**/windows/*.zip; do
+          for f in artifacts/**/build/windows/*.zip; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-windows-${base}"
           done
           
           # Linux ZIP(s)
-          for f in artifacts/**/linux/*.zip; do
+          for f in artifacts/**/build/linux/*.zip; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-linux-${base}"
           done
           
           # macOS ZIP(s)
-          for f in artifacts/**/macos/*.zip; do
+          for f in artifacts/**/build/macos/*.zip; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-macos-${base}"
           done
@@ -480,7 +436,7 @@ jobs:
             
             **🏃‍♂️ Workflow Run:** [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
-            **📋 Changelog:** [${{ github.ref_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
+            **📋 Changelog:** [changelog](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)
             
             ### 📦 Included Artifacts
             Android (APK/AAB), iOS (IPA), Windows (ZIP), macOS (ZIP), Linux (ZIP).
