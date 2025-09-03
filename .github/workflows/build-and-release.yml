@@ -290,6 +290,7 @@ jobs:
           $env:APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
+          $src = "build/windows/x64/runner/Release/*"
           $SLUG = "${{ steps.slugify_app.outputs.slug }}"
           $dst = "build/windows/$SLUG.zip"
           Compress-Archive -Path $src -DestinationPath $dst
