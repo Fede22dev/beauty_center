@@ -46,6 +46,13 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Verify dependencies
+        run: flutter pub deps
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+        continue-on-error: true
+
       - name: Analyze code
         run: flutter analyze --fatal-infos
         continue-on-error: true
@@ -77,6 +84,9 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses
+
       - name: Get dependencies
         run: flutter pub get
 
@@ -85,6 +95,13 @@ jobs:
 
       - name: Build App Bundle
         run: flutter build appbundle --release
+
+      - name: List build outputs (debug)
+        run: |
+          echo "APK files:"
+          find build/app/outputs/flutter-apk -name "*.apk" -type f || echo "No APK files found"
+          echo "AAB files:"
+          find build/app/outputs/bundle -name "*.aab" -type f || echo "No AAB files found"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -123,6 +140,8 @@ jobs:
           mkdir -p build/ios/ipa
           cd build/ios/iphoneos
           zip -r ../ipa/Runner.ipa Runner.app
+          echo "IPA created:"
+          ls -la ../ipa/
 
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v4
@@ -156,8 +175,20 @@ jobs:
 
       - name: Create macOS ZIP
         run: |
+          echo "Current directory: $(pwd)"
+          echo "Build directory contents:"
+          ls -la build/macos/Build/Products/Release/
+          
           cd build/macos/Build/Products/Release
-          zip -r ../../../../macos-app.zip *.app
+          APP_NAME=$(ls *.app | head -1)
+          echo "Found app: $APP_NAME"
+          
+          zip -r macos-app.zip "$APP_NAME"
+          echo "ZIP created, moving to workspace..."
+          mv macos-app.zip "$GITHUB_WORKSPACE/"
+          
+          echo "Final check - ZIP in workspace:"
+          ls -la "$GITHUB_WORKSPACE/macos-app.zip"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -193,7 +224,17 @@ jobs:
         shell: pwsh
         run: |
           $src = "build/windows/x64/runner/Release"
-          Compress-Archive -Path "$src/*" -DestinationPath "windows-app.zip"
+          Write-Output "Source directory contents:"
+          Get-ChildItem -Path $src
+          
+          $zipPath = "$env:GITHUB_WORKSPACE/windows-app.zip"
+          Compress-Archive -Path "$src/*" -DestinationPath $zipPath
+          
+          Write-Output "ZIP created at: $zipPath"
+          if (Test-Path $zipPath) {
+            $zipInfo = Get-Item $zipPath
+            Write-Output "ZIP size: $($zipInfo.Length) bytes"
+          }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -232,8 +273,16 @@ jobs:
 
       - name: Create Linux ZIP
         run: |
+          echo "Current directory: $(pwd)"
+          echo "Linux build contents:"
+          ls -la build/linux/x64/release/
+          
           cd build/linux/x64/release
-          zip -r ../../../../linux-app.zip bundle
+          zip -r linux-app.zip bundle
+          mv linux-app.zip "$GITHUB_WORKSPACE/"
+          
+          echo "ZIP moved to workspace:"
+          ls -la "$GITHUB_WORKSPACE/linux-app.zip"
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -279,60 +328,82 @@ jobs:
         with:
           path: ./artifacts
 
+      - name: Debug artifacts structure
+        run: |
+          echo "=== ARTIFACTS STRUCTURE ==="
+          find artifacts -type f -name "*" | sort
+          echo "=== DETAILED LISTING ==="
+          ls -laR artifacts/
+
       - name: Prepare release assets
         run: |
           mkdir -p dist
           APP_NAME="${{ steps.app_name.outputs.name }}"
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Debug: List all artifacts
-          echo "Available artifacts:"
-          find artifacts -type f -name "*" 2>/dev/null || echo "No artifacts found"
+          echo "Preparing release for: $APP_NAME v$VERSION"
           
-          # Android APK
-          find artifacts -name "*.apk" -type f | while read file; do
-            if [ -f "$file" ]; then
+          # Android APKs
+          if ls artifacts/android-artifacts/*.apk 1> /dev/null 2>&1; then
+            for file in artifacts/android-artifacts/*.apk; do
               filename=$(basename "$file")
               cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
-              echo "Copied: $file -> dist/${APP_NAME}-${VERSION}-android-${filename}"
-            fi
-          done
+              echo "✓ Copied APK: $filename"
+            done
+          else
+            echo "⚠️ No APK files found"
+          fi
           
-          # Android AAB
-          find artifacts -name "*.aab" -type f | while read file; do
-            if [ -f "$file" ]; then
+          # Android AABs
+          if ls artifacts/android-artifacts/*.aab 1> /dev/null 2>&1; then
+            for file in artifacts/android-artifacts/*.aab; do
               filename=$(basename "$file")
               cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
-              echo "Copied: $file -> dist/${APP_NAME}-${VERSION}-android-${filename}"
-            fi
-          done
+              echo "✓ Copied AAB: $filename"
+            done
+          else
+            echo "⚠️ No AAB files found"
+          fi
           
           # iOS
           if [ -f "artifacts/ios-artifacts/Runner.ipa" ]; then
             cp "artifacts/ios-artifacts/Runner.ipa" "dist/${APP_NAME}-${VERSION}-ios.ipa"
-            echo "Copied iOS IPA"
+            echo "✓ Copied iOS IPA"
+          else
+            echo "⚠️ iOS IPA not found"
           fi
           
           # macOS
           if [ -f "artifacts/macos-artifacts/macos-app.zip" ]; then
             cp "artifacts/macos-artifacts/macos-app.zip" "dist/${APP_NAME}-${VERSION}-macos.zip"
-            echo "Copied macOS ZIP"
+            echo "✓ Copied macOS ZIP"
+          else
+            echo "⚠️ macOS ZIP not found"
           fi
           
           # Windows
           if [ -f "artifacts/windows-artifacts/windows-app.zip" ]; then
             cp "artifacts/windows-artifacts/windows-app.zip" "dist/${APP_NAME}-${VERSION}-windows.zip"
-            echo "Copied Windows ZIP"
+            echo "✓ Copied Windows ZIP"
+          else
+            echo "⚠️ Windows ZIP not found"
           fi
           
           # Linux
           if [ -f "artifacts/linux-artifacts/linux-app.zip" ]; then
             cp "artifacts/linux-artifacts/linux-app.zip" "dist/${APP_NAME}-${VERSION}-linux.zip"
-            echo "Copied Linux ZIP"
+            echo "✓ Copied Linux ZIP"
+          else
+            echo "⚠️ Linux ZIP not found"
           fi
           
-          echo "Release assets prepared:"
+          echo "=== FINAL RELEASE ASSETS ==="
           ls -la dist/
+          
+          if [ -z "$(ls -A dist/)" ]; then
+            echo "❌ ERROR: No release assets prepared!"
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -344,7 +415,7 @@ jobs:
             
             **📱 Platforms supported:**
             - Android (APK & AAB)
-            - iOS (IPA - requires signing)
+            - iOS (IPA)
             - macOS (ZIP)
             - Windows (ZIP)
             - Linux (ZIP)
