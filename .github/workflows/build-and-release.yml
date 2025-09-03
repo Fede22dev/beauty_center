@@ -220,18 +220,54 @@ jobs:
       - name: Extract version from tag
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
-      # Install git-cliff without Docker (prebuilt binary)
+      # Install git-cliff
       - name: Install git-cliff (prebuilt)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .bin
-          curl -sSLo cliff.tgz https://github.com/orhun/git-cliff/releases/latest/download/git-cliff-x86_64-unknown-linux-gnu.tar.gz
-          tar -xzf cliff.tgz -C .bin git-cliff
+          
+          # Prefer x86_64 GNU, fallback to MUSL and aarch64 if needed
+          patterns=(
+            "git-cliff-*-x86_64-unknown-linux-gnu.tar.gz"
+            "git-cliff-*-x86_64-unknown-linux-musl.tar.gz"
+            "git-cliff-*-aarch64-unknown-linux-gnu.tar.gz"
+            "git-cliff-*-aarch64-unknown-linux-musl.tar.gz"
+          )
+          
+          downloaded=""
+          for p in "${patterns[@]}"; do
+            if gh release download --repo orhun/git-cliff --pattern "$p" --dir .bin ; then
+              downloaded="$p"
+              break
+            fi
+          done
+          
+          if [[ -z "$downloaded" ]]; then
+            echo "Failed to download git-cliff tarball via gh (no pattern matched)"; exit 1
+          fi
+          
+          tarball=$(ls .bin/git-cliff-*.tar.gz | head -n 1)
+          # Sanity check: ensure it’s actually a gzip’ed tar
+          if ! file -b "$tarball" | grep -qi 'gzip compressed data'; then
+            echo "Downloaded file is not a gzip tar: $(file -b "$tarball")"; exit 1
+          fi
+          
+          tar -xzf "$tarball" -C .bin
+          
+          # Locate the actual binary regardless of inner folder structure
+          bin_path="$(find .bin -maxdepth 2 -type f -name git-cliff -perm -u+x | head -n 1 || true)"
+          if [[ -z "${bin_path:-}" ]]; then
+            echo "git-cliff binary not found after extraction"; ls -R .bin; exit 1
+          fi
+          
+          install -m 0755 "$bin_path" .bin/git-cliff
           echo "$PWD/.bin" >> "$GITHUB_PATH"
-          git-cliff --version
+          .bin/git-cliff --version
 
-      # Generate changelog (keeps the same id and outputs.content as before)
+      # Generate changelog
       - name: Generate changelog
         id: changelog
         shell: bash
