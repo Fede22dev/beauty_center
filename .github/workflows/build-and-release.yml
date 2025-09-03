@@ -258,71 +258,69 @@ jobs:
       - name: Extract version from tag
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
-      - name: Install git-cliff
+      - name: Install git-cliff (robust, add to PATH now + later)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}   # gh CLI uses this
         run: |
           set -euo pipefail
-          mkdir -p .bin
-          cd .bin
-          # Try a few prebuilt tarballs
+          WORKDIR="$PWD"
+          mkdir -p "$WORKDIR/.bin"
+          cd "$WORKDIR/.bin"
+          
+          echo "Runner arch: $(uname -m)"
+          echo "Trying to download git-cliff release tarball via gh..."
+          
+          # Try common Linux builds, pick the first that works
           for PAT in \
             "git-cliff-*-x86_64-unknown-linux-gnu.tar.gz" \
             "git-cliff-*-x86_64-unknown-linux-musl.tar.gz" \
             "git-cliff-*-aarch64-unknown-linux-gnu.tar.gz" \
             "git-cliff-*-aarch64-unknown-linux-musl.tar.gz"
           do
-            if gh release download --repo orhun/git-cliff --pattern "$PAT" ; then
-              TAR="$(ls git-cliff-*.tar.gz | head -n1)"
+            echo "Attempting pattern: $PAT"
+            if gh release download --repo orhun/git-cliff --pattern "$PAT" --clobber ; then
+              TAR="$(ls git-cliff-*.tar.gz | head -n 1)"
+              echo "Downloaded: $TAR"
               file -b "$TAR" || true
               tar -xzf "$TAR"
-              BIN="$(find . -type f -name git-cliff -perm -u+x | head -n1 || true)"
-              if [ -n "${BIN}" ]; then
-                install -m 0755 "$BIN" ./git-cliff
-                echo "$PWD" >> "$GITHUB_PATH"
-                break
-              fi
+              break
+            else
+              echo "Pattern $PAT not available, trying next..."
             fi
           done
-          cd ..
-          echo "git-cliff version:"
-          git-cliff --version || (echo "git-cliff not found"; exit 1)
-
-      - name: Generate changelog (robust)
-        id: changelog
-        run: |
-          set -euo pipefail
-          rm -f CHANGELOG.md
-          echo "Using tag: ${{ steps.app_version.outputs.raw }} (clean: ${{ steps.app_version.outputs.clean }})"
-          echo "APP_NAME: ${{ steps.app_name.outputs.resolved }}"
-          # Try with cliff.toml if present; fallback to default; then fallback to git log.
-          if [ -f cliff.toml ]; then
-            if git-cliff -c cliff.toml --latest --strip header > CHANGELOG.md ; then
-              echo "git-cliff succeeded with cliff.toml"
-            else
-              echo "git-cliff failed with cliff.toml; retry without config"
-              if git-cliff --latest --strip header > CHANGELOG.md ; then
-                echo "git-cliff succeeded without config"
-              else
-                echo "git-cliff failed; fallback to simple git log"
-                git --no-pager log -n 100 --pretty=format:"- %s (%h)" > CHANGELOG.md || true
-              fi
-            fi
-          else
-            if git-cliff --latest --strip header > CHANGELOG.md ; then
-              echo "git-cliff succeeded without config"
-            else
-              echo "git-cliff failed; fallback to simple git log"
-              git --no-pager log -n 100 --pretty=format:"- %s (%h)" > CHANGELOG.md || true
-            fi
+          
+          # Locate the binary inside extracted folders
+          BIN="$(find . -type f -name git-cliff -perm -u+x | head -n 1 || true)"
+          if [ -z "${BIN:-}" ]; then
+            echo "git-cliff binary not found after extraction. Dir listing:"
+            ls -R .
+            exit 1
           fi
-          echo "CHANGELOG preview (first 60 lines):"
+          
+          # Install to repo-local .bin and make available immediately
+          install -m 0755 "$BIN" "$WORKDIR/.bin/git-cliff"
+          
+          # Make it available in THIS step
+          export PATH="$WORKDIR/.bin:$PATH"
+          # Persist for NEXT steps
+          echo "$WORKDIR/.bin" >> "$GITHUB_PATH"
+          
+          echo "which git-cliff => $(which git-cliff || echo 'not found')"
+          echo "git-cliff version:"
+          git-cliff --version
+
+      - name: Generate changelog with git-cliff action
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: cliff.toml        # O rimuovi questa riga se non hai un cliff.toml valido
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Preview changelog (debug)
+        run: |
+          echo "First 60 lines of CHANGELOG.md"
           head -n 60 CHANGELOG.md || true
-          {
-            echo 'content<<EOF'
-            cat CHANGELOG.md
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
 
       - name: Format commit date (UTC)
         id: format_date
