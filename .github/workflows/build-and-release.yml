@@ -160,26 +160,34 @@ jobs:
           ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
           ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
 
-      - name: Accept Android licenses + install packages
+      - name: Accept Android licenses + install packages (robust)
         run: |
           set -euo pipefail
           export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
           SDKMGR="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          
           if [ ! -x "$SDKMGR" ]; then
-            echo "sdkmanager missing at $SDKMGR"
+            echo "sdkmanager not found at $SDKMGR"
             find "$ANDROID_SDK_ROOT" -maxdepth 4 -type d -print
             exit 1
           fi
-          
-          "$SDKMGR" --version
-          yes | "$SDKMGR" --licenses
+          echo "sdkmanager version: $("$SDKMGR" --version)"
+          echo "Accepting licenses (ignore SIGPIPE from 'yes')..."
+          set +o pipefail
+          yes | "$SDKMGR" --licenses || true
+          set -o pipefail
+          echo "Installing required packages..."
+          set +o pipefail
           yes | "$SDKMGR" --install \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0" \
-            "cmdline-tools;latest"
+            "cmdline-tools;latest" || true
+          set -o pipefail
+          echo "Verifying installation..."
+          test -d "$ANDROID_SDK_ROOT/platform-tools" || { echo "platform-tools missing"; exit 1; }
+          test -d "$ANDROID_SDK_ROOT/build-tools/34.0.0" || { echo "build-tools 34.0.0 missing"; exit 1; }
+          test -d "$ANDROID_SDK_ROOT/platforms/android-34" || { echo "platforms;android-34 missing"; exit 1; }
           echo "Installed packages (first 120 lines):"
           "$SDKMGR" --list | sed -n '1,120p' || true
 
@@ -362,7 +370,7 @@ jobs:
       - name: Generate changelog with git-cliff action
         uses: orhun/git-cliff-action@v3
         with:
-          config: cliff.toml        # O rimuovi questa riga se non hai un cliff.toml valido
+          #config: cliff.toml
           args: --latest --strip header
         env:
           OUTPUT: CHANGELOG.md
