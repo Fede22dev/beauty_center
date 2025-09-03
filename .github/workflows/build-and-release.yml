@@ -113,7 +113,10 @@ jobs:
           # Prefer pubspec.yaml app_name, else fallback to repo name, else env
           NAME_FROM_PUBSPEC=""
           if [ -f pubspec.yaml ]; then
-            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml | head -n1 | awk '{print \$2}' | tr -d '"' || true)"
+            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml \
+              | head -n1 \
+              | sed -E 's/^[[:space:]]*app_name:[[:space:]]*\"?([^"]*)\"?/\1/' \
+              || true)"
           fi
           if [ -n "${NAME_FROM_PUBSPEC}" ]; then
             APP_NAME_RESOLVED="${NAME_FROM_PUBSPEC}"
@@ -123,7 +126,27 @@ jobs:
             APP_NAME_RESOLVED="${GITHUB_REPOSITORY##*/}"
           fi
           echo "APP_NAME=${APP_NAME_RESOLVED}" | tee -a "$GITHUB_ENV"
-          echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"       
+          echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"
+
+      - name: Slugify APP_NAME
+        id: slugify_app
+        if: matrix.os == 'Linux' || matrix.os == 'macOS'
+        shell: bash
+        run: |
+          APP_NAME="${{ steps.app_name.outputs.resolved }}"
+          SLUG=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')
+          echo "SLUG_APP_NAME=$SLUG" | tee -a "$GITHUB_ENV"
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+
+      - name: Slugify APP_NAME (Windows)
+        if: runner.os == 'Windows'
+        id: slugify_app
+        shell: pwsh
+        run: |
+          $APP_NAME = "${{ steps.app_name.outputs.resolved }}"
+          $SLUG = $APP_NAME.ToLower() -replace ' ', '-' -replace '[^a-z0-9\-]', ''
+          Write-Output "SLUG_APP_NAME=$SLUG" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Output "slug=$SLUG" >> $env:GITHUB_OUTPUT
 
       - name: Harden Runner
         uses: step-security/harden-runner@v2
@@ -254,10 +277,10 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build linux --release
           mkdir -p "build/linux"
-          zip -r "build/linux/$APP_NAME.zip" build/linux/x64/release/bundle/*
+          SLUG="${{ steps.slugify_app.outputs.slug }}"
+          zip -r "build/linux/$SLUG.zip" build/linux/x64/release/bundle/*
 
       ##### Build Windows #####
       - name: Build Windows
@@ -267,8 +290,8 @@ jobs:
           $env:APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
-          $src = "build/windows/x64/runner/Release/*"
-          $dst = "build/windows/${env:APP_NAME}.zip"
+          $SLUG = "${{ steps.slugify_app.outputs.slug }}"
+          $dst = "build/windows/$SLUG.zip"
           Compress-Archive -Path $src -DestinationPath $dst
 
       ##### Build iOS (no codesign) + macOS #####
@@ -281,11 +304,11 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build macos --release
           mkdir -p "build/macos"
           app_path="$(ls -d build/macos/Build/Products/Release/*.app | head -n 1)"
-          zip -r "build/macos/$APP_NAME.zip" "$app_path"
+          SLUG="${{ steps.slugify_app.outputs.slug }}"
+          zip -r "build/macos/$SLUG.zip" "$app_path"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -323,7 +346,10 @@ jobs:
           # Prefer pubspec.yaml app_name, else fallback to repo name, else env
           NAME_FROM_PUBSPEC=""
           if [ -f pubspec.yaml ]; then
-            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml | head -n1 | awk '{print \$2}' | tr -d '"' || true)"
+            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml \
+              | head -n1 \
+              | sed -E 's/^[[:space:]]*app_name:[[:space:]]*\"?([^"]*)\"?/\1/' \
+              || true)"
           fi
           if [ -n "${NAME_FROM_PUBSPEC}" ]; then
             APP_NAME_RESOLVED="${NAME_FROM_PUBSPEC}"
@@ -381,37 +407,43 @@ jobs:
           find artifacts -type f | sort || true
           
           # Android APK(s)
-          for f in artifacts/**/build/app/outputs/flutter-apk/*.apk; do
+          for f in artifacts/build/app/outputs/flutter-apk/*.apk; do
+            [ -e "$f" ] || continue
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-android-${base}"
           done
           
           # Android AAB(s)
-          for f in artifacts/**/build/app/outputs/bundle/release/*.aab; do
+          for f in artifacts/build/app/outputs/bundle/release/*.aab; do
+            [ -e "$f" ] || continue
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-android-${base}"
           done
           
           # iOS IPA(s)
-          for f in artifacts/**/build/ios/ipa/*.ipa; do
+          for f in artifacts/build/ios/ipa/*.ipa; do
+            [ -e "$f" ] || continue
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-ios-${base}"
           done
           
           # Windows ZIP(s)
-          for f in artifacts/**/build/windows/*.zip; do
+          for f in artifacts/build/windows/*.zip; do
+            [ -e "$f" ] || continue
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-windows-${base}"
           done
           
           # Linux ZIP(s)
-          for f in artifacts/**/build/linux/*.zip; do
+          for f in artifacts/build/linux/*.zip; do
+            [ -e "$f" ] || continue
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-linux-${base}"
           done
           
           # macOS ZIP(s)
-          for f in artifacts/**/build/macos/*.zip; do
+          for f in artifacts/build/macos/*.zip; do
+            [ -e "$f" ] || continue
             base="$(basename "$f")"
             cp -v "$f" "dist/${SLUG}-v${VER}-macos-${base}"
           done
@@ -446,7 +478,6 @@ jobs:
           files: ./dist/**
           draft: false
           prerelease: false
-          generate_release_notes: true
 
       - name: Summary (debug)
         id: summary
