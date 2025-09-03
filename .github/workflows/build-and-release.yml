@@ -129,7 +129,7 @@ jobs:
           echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"
 
       - name: Slugify APP_NAME
-        id: slugify_app
+        id: slugify_app_linux
         if: matrix.os == 'Linux' || matrix.os == 'macOS'
         shell: bash
         run: |
@@ -140,7 +140,7 @@ jobs:
 
       - name: Slugify APP_NAME (Windows)
         if: runner.os == 'Windows'
-        id: slugify_app
+        id: slugify_app_windows
         shell: pwsh
         run: |
           $APP_NAME = "${{ steps.app_name.outputs.resolved }}"
@@ -279,7 +279,7 @@ jobs:
         run: |
           flutter build linux --release
           mkdir -p "build/linux"
-          SLUG="${{ steps.slugify_app.outputs.slug }}"
+          SLUG="${{ steps.slugify_app_linux.outputs.slug }}"
           zip -r "build/linux/$SLUG.zip" build/linux/x64/release/bundle/*
 
       ##### Build Windows #####
@@ -291,7 +291,7 @@ jobs:
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
           $src = "build/windows/x64/runner/Release/*"
-          $SLUG = "${{ steps.slugify_app.outputs.slug }}"
+          $SLUG = "${{ steps.slugify_app_windows.outputs.slug }}"
           $dst = "build/windows/$SLUG.zip"
           Compress-Archive -Path $src -DestinationPath $dst
 
@@ -308,7 +308,7 @@ jobs:
           flutter build macos --release
           mkdir -p "build/macos"
           app_path="$(ls -d build/macos/Build/Products/Release/*.app | head -n 1)"
-          SLUG="${{ steps.slugify_app.outputs.slug }}"
+          SLUG="${{ steps.slugify_app_linux.outputs.slug }}"
           zip -r "build/macos/$SLUG.zip" "$app_path"
 
       - name: Upload artifacts
