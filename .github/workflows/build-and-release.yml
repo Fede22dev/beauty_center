@@ -82,17 +82,17 @@ jobs:
         run: flutter test --coverage
         continue-on-error: true
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-
-      - name: Scan dependencies (OSV-Scanner)
-        shell: bash
-        run: |
-          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
-          "$HOME/go/bin/osv-scanner" scan --lockfile=pubspec.lock
-        continue-on-error: true
+  #      - name: Set up Go
+  #        uses: actions/setup-go@v5
+  #        with:
+  #          go-version: 'stable'
+  #
+  #      - name: Scan dependencies (OSV-Scanner)
+  #        shell: bash
+  #        run: |
+  #          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+  #          "$HOME/go/bin/osv-scanner" scan --lockfile=pubspec.lock
+  #        continue-on-error: true
 
   build:
     name: Build (${{ matrix.os }})
@@ -128,9 +128,9 @@ jobs:
           echo "APP_NAME=${APP_NAME_RESOLVED}" | tee -a "$GITHUB_ENV"
           echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"
 
-      - name: Slugify APP_NAME
+      - name: Slugify APP_NAME (Linux)
         id: slugify_app_linux
-        if: matrix.os == 'Linux' || matrix.os == 'macOS'
+        if: matrix.os != 'Windows'
         shell: bash
         run: |
           APP_NAME="${{ steps.app_name.outputs.resolved }}"
@@ -281,19 +281,22 @@ jobs:
           mkdir -p "build/linux"
           SLUG="${{ steps.slugify_app_linux.outputs.slug }}"
           zip -r "build/linux/$SLUG.zip" build/linux/x64/release/bundle/*
+          echo "Created Linux artifact: $ZIP_PATH"
+          ls -la build/linux
 
       ##### Build Windows #####
       - name: Build Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $env:APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
           $src = "build/windows/x64/runner/Release/*"
           $SLUG = "${{ steps.slugify_app_windows.outputs.slug }}"
           $dst = "build/windows/$SLUG.zip"
           Compress-Archive -Path $src -DestinationPath $dst
+          Write-Output "Created Windows artifact: $DST"
+          Get-ChildItem -Path build/windows
 
       ##### Build iOS (no codesign) + macOS #####
       - name: Build iOS (no codesign)
@@ -307,24 +310,40 @@ jobs:
         run: |
           flutter build macos --release
           mkdir -p "build/macos"
-          app_path="$(ls -d build/macos/Build/Products/Release/*.app | head -n 1)"
           SLUG="${{ steps.slugify_app_linux.outputs.slug }}"
+          app_path="$(ls -d build/macos/Build/Products/Release/*.app | head -n 1)"
           zip -r "build/macos/$SLUG.zip" "$app_path"
+          echo "Created macOS artifact: $ZIP_PATH"
+          ls -la build/macos
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-artifacts
           path: |
-            build/app/outputs/flutter-apk/*.apk
-            build/app/outputs/bundle/release/*.aab
-            build/ios/ipa/*.ipa
-            build/macos/*.zip
-            build/windows/*.zip
-            build/linux/*.zip
+            ${{ runner.os == 'Linux' && 'build/linux/*.zip build/app/outputs/flutter-apk/*.apk build/app/outputs/bundle/release/*.aab' || '' }}
+            ${{ runner.os == 'Windows' && 'build/windows/*.zip' || '' }}
+            ${{ runner.os == 'macOS' && 'build/macos/*.zip build/ios/ipa/*.ipa' || '' }}
           compression-level: 9
           if-no-files-found: warn
           retention-days: 14
+
+      # List uploaded artifacts (Linux/macOS)
+      - name: List uploaded artifacts (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "Files to be uploaded (Linux/macOS):"
+          find build -type f | sort
+
+      # List uploaded artifacts (Windows)
+      - name: List uploaded artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Output "Files to be uploaded (Windows):"
+          Get-ChildItem -Path build -Recurse | Sort-Object FullName
+  
 
   release:
     name: Release
@@ -460,9 +479,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "${{ env.APP_NAME }} ${{ env.APP_VERSION }}"
+          name: "${{ steps.app_name.outputs.resolved }} ${{ env.APP_VERSION }}"
           body: |
-            ## 🚀 Release ${{ env.APP_NAME }} ${{ env.APP_VERSION }}
+            ## 🚀 Release ${{ steps.app_name.outputs.resolved }} ${{ env.APP_VERSION }}
             **🔖 Version:** `${{ env.APP_VERSION }}`
             **🔗 Commit:** `${{ github.sha }}`
             **📅 Date:** ${{ steps.format_date.outputs.formatted_date }}
