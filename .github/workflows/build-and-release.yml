@@ -264,7 +264,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          APP_NAME="${{ steps.app_name.outputs.resolved }}"
+          $env:APP_NAME="${{ steps.app_name.outputs.resolved }}"
           flutter build windows --release
           New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
           $src = "build/windows/x64/runner/Release/*"
