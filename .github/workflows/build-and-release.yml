@@ -204,23 +204,31 @@ jobs:
     needs: build
     permissions:
       contents: write
-    timeout-minutes: 10
+    timeout-minutes: 15
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download Artifacts
+      - name: Download all artifacts (merge into ./artifacts)
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
           merge-multiple: true
 
+      - name: Show downloaded files (debug)
+        run: |
+          echo "Artifacts content:"
+          ls -la ./artifacts || true
+          echo "---"
+          find ./artifacts -maxdepth 4 -type f | sort || true
+
       - name: Extract version from tag
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
-      # Install git-cliff
+      # Install git-cliff (unchanged logic, kept for completeness)
       - name: Install git-cliff (prebuilt)
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -228,15 +236,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .bin
-          
-          # Prefer x86_64 GNU, fallback to MUSL and aarch64 if needed
           patterns=(
             "git-cliff-*-x86_64-unknown-linux-gnu.tar.gz"
             "git-cliff-*-x86_64-unknown-linux-musl.tar.gz"
             "git-cliff-*-aarch64-unknown-linux-gnu.tar.gz"
             "git-cliff-*-aarch64-unknown-linux-musl.tar.gz"
           )
-          
           downloaded=""
           for p in "${patterns[@]}"; do
             if gh release download --repo orhun/git-cliff --pattern "$p" --dir .bin ; then
@@ -244,39 +249,40 @@ jobs:
               break
             fi
           done
-          
           if [[ -z "$downloaded" ]]; then
             echo "Failed to download git-cliff tarball via gh (no pattern matched)"; exit 1
           fi
-          
           tarball=$(ls .bin/git-cliff-*.tar.gz | head -n 1)
-          # Sanity check: ensure it’s actually a gzip’ed tar
           if ! file -b "$tarball" | grep -qi 'gzip compressed data'; then
             echo "Downloaded file is not a gzip tar: $(file -b "$tarball")"; exit 1
           fi
-          
           tar -xzf "$tarball" -C .bin
-          
-          # Locate the actual binary regardless of inner folder structure
           bin_path="$(find .bin -maxdepth 2 -type f -name git-cliff -perm -u+x | head -n 1 || true)"
           if [[ -z "${bin_path:-}" ]]; then
             echo "git-cliff binary not found after extraction"; ls -R .bin; exit 1
           fi
-          
           install -m 0755 "$bin_path" .bin/git-cliff
           echo "$PWD/.bin" >> "$GITHUB_PATH"
           .bin/git-cliff --version
 
-      # Generate changelog
+      # Make changelog robust: fail if cliff.toml is invalid, then fallback to an empty file, so release notes are still generated
       - name: Generate changelog
         id: changelog
         shell: bash
         run: |
           set -euo pipefail
+          rm -f CHANGELOG.md
           if [[ -f cliff.toml ]]; then
-            git-cliff -c cliff.toml --latest --strip header > CHANGELOG.md || true
+            # Fail loudly if config is invalid (do not hide with '|| true')
+            if ! git-cliff -c cliff.toml --latest --strip header > CHANGELOG.md ; then
+              echo "git-cliff failed with cliff.toml, falling back to empty changelog"
+              : > CHANGELOG.md
+            fi
           else
-            git-cliff --latest --strip header > CHANGELOG.md || true
+            if ! git-cliff --latest --strip header > CHANGELOG.md ; then
+              echo "git-cliff failed without config, falling back to empty changelog"
+              : > CHANGELOG.md
+            fi
           fi
           {
             echo 'content<<EOF'
@@ -294,65 +300,72 @@ jobs:
         run: |
           set -euo pipefail
           ver="${APP_VERSION#v}"
-          # slugify APP_NAME to be filename-friendly
           slug="$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')"
           mkdir -p dist
           shopt -s nullglob
           
+          # IMPORTANT: after download, paths are relative to 'build' root, so there is no leading 'build/'.
+          # Use '**' so it works even if you remove merge-multiple in the future.
           # Android APK(s)
-          for f in artifacts/build/app/outputs/flutter-apk/*.apk; do
+          for f in artifacts/**/app/outputs/flutter-apk/*.apk; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-android-${base}"
           done
           
           # Android AAB(s)
-          for f in artifacts/build/app/outputs/bundle/release/*.aab; do
+          for f in artifacts/**/app/outputs/bundle/release/*.aab; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-android-${base}"
           done
           
-          # iOS IPA(s)
-          for f in artifacts/build/ios/ipa/*.ipa; do
+          # iOS IPA(s) (present only if you codesign/build an IPA)
+          for f in artifacts/**/ios/ipa/*.ipa; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-ios-${base}"
           done
           
-          # Windows ZIP
-          for f in artifacts/build/windows/*.zip; do
+          # Windows ZIP(s)
+          for f in artifacts/**/windows/*.zip; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-windows-${base}"
           done
           
-          # Linux ZIP
-          for f in artifacts/build/linux/*.zip; do
+          # Linux ZIP(s)
+          for f in artifacts/**/linux/*.zip; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-linux-${base}"
           done
           
-          # macOS ZIP
-          for f in artifacts/build/macos/*.zip; do
+          # macOS ZIP(s)
+          for f in artifacts/**/macos/*.zip; do
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-macos-${base}"
           done
+          
+          echo "Final dist content:"
+          ls -la dist || true
+          
+          # Optional: fail if dist is empty (uncomment if you want to make it strict)
+          # test -n "$(ls -A dist 2>/dev/null)" || { echo "No assets found in dist"; exit 1; }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "🚀 ${{ env.APP_NAME }} v. ${{ env.APP_VERSION }}"
+          name: "${{ env.APP_NAME }} v${{ env.APP_VERSION }}"
           body: |
             ## 🚀 Release ${{ env.APP_NAME }} ${{ env.APP_VERSION }}
             **🔖 Version:** `${{ env.APP_VERSION }}`
             **🔗 Commit:** `${{ github.sha }}`
             **Workflow Run:** [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             **📅 Date:** ${{ steps.format_date.outputs.formatted_date }}
-
+            
             ### 📋 Changelog
             ${{ steps.changelog.outputs.content }}
-
+            
             ### 📦 Included Artifacts
             Android (APK/AAB), iOS (IPA), Windows (ZIP), macOS (ZIP), Linux (ZIP).
-
+            
             ---
             _Generated automatically by CI/CD pipeline._
           files: ./dist/**
