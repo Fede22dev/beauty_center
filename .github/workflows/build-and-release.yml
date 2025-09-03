@@ -138,6 +138,8 @@ jobs:
           cache: gradle
 
       - name: Ensure Android cmdline-tools + sdkmanager in PATH
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
           set -euxo pipefail
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
@@ -161,6 +163,8 @@ jobs:
           ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
 
       - name: Accept Android licenses + install packages (robust)
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
           set -euo pipefail
           export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
@@ -201,6 +205,7 @@ jobs:
 
       - name: Toolchain info (debug)
         if: runner.os == 'Linux'
+        shell: bash
         run: |
           java -version
           flutter --version
@@ -211,10 +216,12 @@ jobs:
       # Build Android (Ubuntu only to avoid duplication)
       - name: Build Android APK
         if: runner.os == 'Linux'
+        shell: bash
         run: flutter build apk --release
 
       - name: Build Android App Bundle
         if: runner.os == 'Linux'
+        shell: bash
         run: flutter build appbundle --release
 
       # Build Windows
@@ -240,6 +247,7 @@ jobs:
       # Build iOS (no codesign) + macOS (only on macOS)
       - name: Build iOS (no codesign)
         if: runner.os == 'macOS'
+        shell: bash
         run: flutter build ipa --release --no-codesign
 
       - name: Build macOS
@@ -282,6 +290,7 @@ jobs:
 
       - name: Resolve APP_NAME
         id: app_name
+        shell: bash
         run: |
           # Prefer pubspec.yaml app_name, else fallback to repo name, else env
           NAME_FROM_PUBSPEC=""
@@ -305,6 +314,8 @@ jobs:
           merge-multiple: true
 
       - name: Show downloaded files (debug)
+        id: show_artifacts
+        shell: bash
         run: |
           echo "Artifacts directory content:"
           ls -la ./artifacts || true
@@ -314,9 +325,13 @@ jobs:
           du -sh ./artifacts || true
 
       - name: Extract version from tag
+        id: app_version
+        shell: bash
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
       - name: Install git-cliff (robust, add to PATH now + later)
+        id: install_git_cliff
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}   # gh CLI uses this
         run: |
@@ -376,6 +391,8 @@ jobs:
           OUTPUT: CHANGELOG.md
 
       - name: Preview changelog (debug)
+        id: preview_changelog
+        shell: bash
         run: |
           echo "First 60 lines of CHANGELOG.md"
           head -n 60 CHANGELOG.md || true
@@ -386,6 +403,8 @@ jobs:
         run: echo "formatted_date=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
 
       - name: Prepare distribution folder and rename assets
+        id: rename_assets
+        shell: bash
         run: |
           set -euo pipefail
           APP_NAME="${{ steps.app_name.outputs.resolved }}"
@@ -469,6 +488,8 @@ jobs:
           generate_release_notes: true
 
       - name: Summary (debug)
+        id: summary
+        shell: bash
         run: |
           echo "Release created for tag: ${{ github.ref_name }}"
           echo "Name: ${{ steps.app_name.outputs.resolved }} v${{ steps.app_version.outputs.clean }}"
