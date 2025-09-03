@@ -32,6 +32,8 @@ jobs:
           fetch-depth: 0
 
       - name: Print runner info (debug)
+        id: print_runner_info
+        shell: bash
         run: |
           echo "OS: $(uname -a)"
           echo "Repo: $GITHUB_REPOSITORY"
@@ -56,22 +58,28 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
 
       - name: Flutter doctor
+        id: flutter_doctor
+        shell: bash
         run: |
           flutter --version
           flutter doctor -v
 
       - name: Flutter Pub Get
+        shell: bash
         run: flutter pub get
 
       - name: Check formatting
+        shell: bash
         run: dart format --output=none --set-exit-if-changed .
         continue-on-error: true
 
       - name: Analyze code
+        shell: bash
         run: flutter analyze
         continue-on-error: true
 
       - name: Run tests
+        shell: bash
         run: flutter test --coverage
         continue-on-error: true
 
@@ -81,6 +89,7 @@ jobs:
           go-version: 'stable'
 
       - name: Scan dependencies (OSV-Scanner)
+        shell: bash
         run: |
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
           "$HOME/go/bin/osv-scanner" scan --lockfile=pubspec.lock
@@ -135,7 +144,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+          cache: true
 
       - name: Ensure Android cmdline-tools + sdkmanager in PATH
         if: runner.os == 'Linux'
@@ -329,73 +338,73 @@ jobs:
         shell: bash
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
-      - name: Install git-cliff (robust, add to PATH now + later)
-        id: install_git_cliff
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}   # gh CLI uses this
-        run: |
-          set -euo pipefail
-          WORKDIR="$PWD"
-          mkdir -p "$WORKDIR/.bin"
-          cd "$WORKDIR/.bin"
-          
-          echo "Runner arch: $(uname -m)"
-          echo "Trying to download git-cliff release tarball via gh..."
-          
-          # Try common Linux builds, pick the first that works
-          for PAT in \
-            "git-cliff-*-x86_64-unknown-linux-gnu.tar.gz" \
-            "git-cliff-*-x86_64-unknown-linux-musl.tar.gz" \
-            "git-cliff-*-aarch64-unknown-linux-gnu.tar.gz" \
-            "git-cliff-*-aarch64-unknown-linux-musl.tar.gz"
-          do
-            echo "Attempting pattern: $PAT"
-            if gh release download --repo orhun/git-cliff --pattern "$PAT" --clobber ; then
-              TAR="$(ls git-cliff-*.tar.gz | head -n 1)"
-              echo "Downloaded: $TAR"
-              file -b "$TAR" || true
-              tar -xzf "$TAR"
-              break
-            else
-              echo "Pattern $PAT not available, trying next..."
-            fi
-          done
-          
-          # Locate the binary inside extracted folders
-          BIN="$(find . -type f -name git-cliff -perm -u+x | head -n 1 || true)"
-          if [ -z "${BIN:-}" ]; then
-            echo "git-cliff binary not found after extraction. Dir listing:"
-            ls -R .
-            exit 1
-          fi
-          
-          # Install to repo-local .bin and make available immediately
-          install -m 0755 "$BIN" "$WORKDIR/.bin/git-cliff"
-          
-          # Make it available in THIS step
-          export PATH="$WORKDIR/.bin:$PATH"
-          # Persist for NEXT steps
-          echo "$WORKDIR/.bin" >> "$GITHUB_PATH"
-          
-          echo "which git-cliff => $(which git-cliff || echo 'not found')"
-          echo "git-cliff version:"
-          git-cliff --version
-
-      - name: Generate changelog with git-cliff action
-        uses: orhun/git-cliff-action@v3
-        with:
-          #config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: CHANGELOG.md
-
-      - name: Preview changelog (debug)
-        id: preview_changelog
-        shell: bash
-        run: |
-          echo "First 60 lines of CHANGELOG.md"
-          head -n 60 CHANGELOG.md || true
+      #      - name: Install git-cliff (robust, add to PATH now + later)
+      #        id: install_git_cliff
+      #        shell: bash
+      #        env:
+      #          GH_TOKEN: ${{ github.token }}
+      #        run: |
+      #          set -euo pipefail
+      #          WORKDIR="$PWD"
+      #          mkdir -p "$WORKDIR/.bin"
+      #          cd "$WORKDIR/.bin"
+      #
+      #          echo "Runner arch: $(uname -m)"
+      #          echo "Trying to download git-cliff release tarball via gh..."
+      #
+      #          # Try common Linux builds, pick the first that works
+      #          for PAT in \
+      #            "git-cliff-*-x86_64-unknown-linux-gnu.tar.gz" \
+      #            "git-cliff-*-x86_64-unknown-linux-musl.tar.gz" \
+      #            "git-cliff-*-aarch64-unknown-linux-gnu.tar.gz" \
+      #            "git-cliff-*-aarch64-unknown-linux-musl.tar.gz"
+      #          do
+      #            echo "Attempting pattern: $PAT"
+      #            if gh release download --repo orhun/git-cliff --pattern "$PAT" --clobber ; then
+      #              TAR="$(ls git-cliff-*.tar.gz | head -n 1)"
+      #              echo "Downloaded: $TAR"
+      #              file -b "$TAR" || true
+      #              tar -xzf "$TAR"
+      #              break
+      #            else
+      #              echo "Pattern $PAT not available, trying next..."
+      #            fi
+      #          done
+      #
+      #          # Locate the binary inside extracted folders
+      #          BIN="$(find . -type f -name git-cliff -perm -u+x | head -n 1 || true)"
+      #          if [ -z "${BIN:-}" ]; then
+      #            echo "git-cliff binary not found after extraction. Dir listing:"
+      #            ls -R .
+      #            exit 1
+      #          fi
+      #
+      #          # Install to repo-local .bin and make available immediately
+      #          install -m 0755 "$BIN" "$WORKDIR/.bin/git-cliff"
+      #
+      #          # Make it available in THIS step
+      #          export PATH="$WORKDIR/.bin:$PATH"
+      #          # Persist for NEXT steps
+      #          echo "$WORKDIR/.bin" >> "$GITHUB_PATH"
+      #
+      #          echo "which git-cliff => $(which git-cliff || echo 'not found')"
+      #          echo "git-cliff version:"
+      #          git-cliff --version
+      #
+      #      - name: Generate changelog with git-cliff action
+      #        uses: orhun/git-cliff-action@v3
+      #        with:
+      #          #config: cliff.toml
+      #          args: --latest --strip header
+      #        env:
+      #          OUTPUT: CHANGELOG.md
+      #
+      #      - name: Preview changelog (debug)
+      #        id: preview_changelog
+      #        shell: bash
+      #        run: |
+      #          echo "First 60 lines of CHANGELOG.md"
+      #          head -n 60 CHANGELOG.md || true
 
       - name: Format commit date (UTC)
         id: format_date
@@ -472,10 +481,9 @@ jobs:
             **🔗 Commit:** `${{ github.sha }}`
             **📅 Date:** ${{ steps.format_date.outputs.formatted_date }}
             
-            **Workflow Run:** [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            **🏃‍♂️ Workflow Run:** [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
-            ### 📋 Changelog
-            ${{ steps.changelog.outputs.content }}
+            **📋 Changelog:** [${{ github.ref_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
             
             ### 📦 Included Artifacts
             Android (APK/AAB), iOS (IPA), Windows (ZIP), macOS (ZIP), Linux (ZIP).
