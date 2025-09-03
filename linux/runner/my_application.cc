@@ -7,6 +7,11 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+// Fallback if not provided by CMake
+#ifndef APP_DISPLAY_NAME
+#define APP_DISPLAY_NAME "Beauty Center"
+#endif
+
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
@@ -40,11 +45,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "beauty_center");
+    gtk_header_bar_set_title(header_bar, APP_DISPLAY_NAME);
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "beauty_center");
+    gtk_window_set_title(window, APP_DISPLAY_NAME);
   }
 
   gtk_window_set_default_size(window, 1280, 720);
