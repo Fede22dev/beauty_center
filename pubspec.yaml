@@ -1,4 +1,5 @@
 name: beauty_center # To change the visualized name of app use, package rename command: rename setAppName --targets ios,android,macos,windows,linux --value "Beauty Center"
+app_name: "Beauty Center"
 description: "Management app for beauty centers."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 0.1.0
