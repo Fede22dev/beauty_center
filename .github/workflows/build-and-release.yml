@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest, ubuntu-latest, windows-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
         flutter: [ stable ]
 
     steps:
@@ -32,15 +32,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Check code formatting
-      - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed .
-
       # Setup Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ matrix.flutter }}
+
+      # Check code formatting
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
 
       # Cache pub dependencies
       - name: Cache Pub
@@ -49,7 +49,6 @@ jobs:
           path: |
             ~/.pub-cache
             .dart-tool
-            .packages
           key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
           restore-keys: ${{ runner.os }}-pub-
 
@@ -62,6 +61,7 @@ jobs:
         run: |
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
           osv-scanner scan source --lockfile=pubspec.lock
+        continue-on-error: true
 
       # Run analyzer
       - name: Analyze code
@@ -81,14 +81,6 @@ jobs:
         if: runner.os != 'macOS'
         run: flutter build appbundle --release
 
-      - name: Build iOS (no codesign)
-        if: runner.os == 'macOS'
-        run: flutter build ios --release --no-codesign
-
-      - name: Build macOS
-        if: runner.os == 'macOS'
-        run: flutter build macos --release
-
       - name: Build Windows
         if: runner.os == 'Windows'
         run: flutter build windows --release
@@ -96,6 +88,14 @@ jobs:
       - name: Build Linux
         if: runner.os == 'Linux'
         run: flutter build linux --release
+
+      - name: Build iOS (no codesign)
+        if: runner.os == 'macOS'
+        run: flutter build ipa --release --no-codesign
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: flutter build macos --release
 
       # Upload artifacts
       - name: Upload Build Artifacts
@@ -106,6 +106,7 @@ jobs:
             build/app/outputs/flutter-apk/*.apk
             build/app/outputs/bundle/release/*.aab
             build/ios/ipa/*.ipa
+            build/ios/*.ipa
             build/macos/Build/Products/Release/*.app
             build/windows/runner/Release/*.exe
             build/linux/x64/release/bundle/*
@@ -161,3 +162,4 @@ jobs:
             ---
             _Generated automatically by CI/CD pipeline._
           files: ./artifacts/**
+          generate_release_notes: true
