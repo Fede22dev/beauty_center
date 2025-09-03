@@ -46,13 +46,6 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Verify dependencies
-        run: flutter pub deps
-
-      - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed .
-        continue-on-error: true
-
       - name: Analyze code
         run: flutter analyze --fatal-infos
         continue-on-error: true
@@ -292,40 +285,50 @@ jobs:
           APP_NAME="${{ steps.app_name.outputs.name }}"
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Android
-          if [ -d "artifacts/android-artifacts" ]; then
-            for file in artifacts/android-artifacts/*.apk; do
-              if [ -f "$file" ]; then
-                filename=$(basename "$file")
-                cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
-              fi
-            done
-            for file in artifacts/android-artifacts/*.aab; do
-              if [ -f "$file" ]; then
-                filename=$(basename "$file")
-                cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
-              fi
-            done
-          fi
+          # Debug: List all artifacts
+          echo "Available artifacts:"
+          find artifacts -type f -name "*" 2>/dev/null || echo "No artifacts found"
+          
+          # Android APK
+          find artifacts -name "*.apk" -type f | while read file; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
+              echo "Copied: $file -> dist/${APP_NAME}-${VERSION}-android-${filename}"
+            fi
+          done
+          
+          # Android AAB
+          find artifacts -name "*.aab" -type f | while read file; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
+              echo "Copied: $file -> dist/${APP_NAME}-${VERSION}-android-${filename}"
+            fi
+          done
           
           # iOS
           if [ -f "artifacts/ios-artifacts/Runner.ipa" ]; then
             cp "artifacts/ios-artifacts/Runner.ipa" "dist/${APP_NAME}-${VERSION}-ios.ipa"
+            echo "Copied iOS IPA"
           fi
           
           # macOS
           if [ -f "artifacts/macos-artifacts/macos-app.zip" ]; then
             cp "artifacts/macos-artifacts/macos-app.zip" "dist/${APP_NAME}-${VERSION}-macos.zip"
+            echo "Copied macOS ZIP"
           fi
           
           # Windows
           if [ -f "artifacts/windows-artifacts/windows-app.zip" ]; then
             cp "artifacts/windows-artifacts/windows-app.zip" "dist/${APP_NAME}-${VERSION}-windows.zip"
+            echo "Copied Windows ZIP"
           fi
           
           # Linux
           if [ -f "artifacts/linux-artifacts/linux-app.zip" ]; then
             cp "artifacts/linux-artifacts/linux-app.zip" "dist/${APP_NAME}-${VERSION}-linux.zip"
+            echo "Copied Linux ZIP"
           fi
           
           echo "Release assets prepared:"
@@ -347,7 +350,7 @@ jobs:
             - Linux (ZIP)
             
             **📋 Changes:**
-            See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+            - See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
             
             **🔗 Commit:** `${{ github.sha }}`
             **📅 Date:** ${{ github.event.head_commit.timestamp }}
