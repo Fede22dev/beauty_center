@@ -87,11 +87,6 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Flutter doctor
-        run: |
-          flutter --version
-          flutter doctor -v
-
       - name: Get dependencies
         run: flutter pub get
 
@@ -366,8 +361,8 @@ jobs:
           echo "Preparing release for: $APP_NAME v$VERSION"
           
           # Android APKs
-          if ls artifacts/android-artifacts/*.apk 1> /dev/null 2>&1; then
-            for file in artifacts/android-artifacts/*.apk; do
+          if find artifacts/android-artifacts -name "*.apk" -type f | grep -q .; then
+            find artifacts/android-artifacts -name "*.apk" -type f | while read file; do
               filename=$(basename "$file")
               cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
               echo "✓ Copied APK: $filename"
@@ -377,8 +372,8 @@ jobs:
           fi
           
           # Android AABs
-          if ls artifacts/android-artifacts/*.aab 1> /dev/null 2>&1; then
-            for file in artifacts/android-artifacts/*.aab; do
+          if find artifacts/android-artifacts -name "*.aab" -type f | grep -q .; then
+            find artifacts/android-artifacts -name "*.aab" -type f | while read file; do
               filename=$(basename "$file")
               cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
               echo "✓ Copied AAB: $filename"
