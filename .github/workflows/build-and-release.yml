@@ -46,7 +46,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.2'
-          cache: true
 
       - name: Cache Pub
         uses: actions/cache@v3
@@ -121,7 +120,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.2'
-          cache: true
 
       - name: Cache Pub
         uses: actions/cache@v3
@@ -144,7 +142,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: true
 
       - name: Ensure Android cmdline-tools + sdkmanager in PATH
         if: runner.os == 'Linux'
