@@ -137,10 +137,51 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Accept Android licenses (Ubuntu only)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: yes | sdkmanager --licenses || true
+      - name: Ensure Android cmdline-tools + sdkmanager in PATH
+        run: |
+          set -euxo pipefail
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          
+          # Make sure cmdline-tools exist (runner images usually have them, but be explicit)
+          if [ ! -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "cmdline-tools not found, installing via sdkmanager bootstrap..."
+            # Install base tools if missing
+            mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+            # The runner typically has 'latest'; if not, fallback to preinstalled path hints
+            ls -la "$ANDROID_SDK_ROOT" || true
+          fi
+          
+          # Export PATH now and persist for subsequent steps
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          which sdkmanager || true
+          sdkmanager --version || true
+          ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
+          ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
+
+      - name: Accept Android licenses + install packages
+        run: |
+          set -euo pipefail
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          SDKMGR="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          
+          if [ ! -x "$SDKMGR" ]; then
+            echo "sdkmanager missing at $SDKMGR"
+            find "$ANDROID_SDK_ROOT" -maxdepth 4 -type d -print
+            exit 1
+          fi
+          
+          "$SDKMGR" --version
+          yes | "$SDKMGR" --licenses
+          yes | "$SDKMGR" --install \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "cmdline-tools;latest"
+          echo "Installed packages (first 120 lines):"
+          "$SDKMGR" --list | sed -n '1,120p' || true
 
       # Linux desktop deps
       - name: Install Linux desktop deps
@@ -149,6 +190,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils
+
+      - name: Toolchain info (debug)
+        if: runner.os == 'Linux'
+        run: |
+          java -version
+          flutter --version
+          adb version || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "PATH=$PATH"
 
       # Build Android (Ubuntu only to avoid duplication)
       - name: Build Android APK
