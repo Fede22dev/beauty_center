@@ -1,10 +1,10 @@
 name: Build and Release
 
 on:
+  workflow_dispatch: { }
   push:
     tags:
       - 'v*'  # e.g., v1.2.3
-  workflow_dispatch: { }
 
 concurrency:
   group: release-${{ github.ref }}
@@ -12,6 +12,7 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.35.2'
+  JAVA_VERSION: '17'
 
 jobs:
   verify:
@@ -31,327 +32,228 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Print runner info (debug)
-        id: print_runner_info
-        shell: bash
-        run: |
-          echo "OS: $(uname -a)"
-          echo "Repo: $GITHUB_REPOSITORY"
-          echo "Ref: $GITHUB_REF"
-          echo "Actor: $GITHUB_ACTOR"
-          echo "Workspace: $GITHUB_WORKSPACE"
-          ls -la
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-
-      - name: Cache Pub
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.pub-cache
-            .dart-tool
-          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-pub-
+          cache: true
 
       - name: Flutter doctor
-        id: flutter_doctor
-        shell: bash
         run: |
           flutter --version
           flutter doctor -v
 
-      - name: Flutter Pub Get
-        shell: bash
+      - name: Get dependencies
         run: flutter pub get
 
+      - name: Verify dependencies
+        run: flutter pub deps
+
       - name: Check formatting
-        shell: bash
         run: dart format --output=none --set-exit-if-changed .
-        continue-on-error: true
 
       - name: Analyze code
-        shell: bash
-        run: flutter analyze
-        continue-on-error: true
+        run: flutter analyze --fatal-infos
 
       - name: Run tests
-        shell: bash
-        run: flutter test --coverage
-        continue-on-error: true
+        run: flutter test --coverage --reporter=expanded
 
-  #      - name: Set up Go
-  #        uses: actions/setup-go@v5
-  #        with:
-  #          go-version: 'stable'
-  #
-  #      - name: Scan dependencies (OSV-Scanner)
-  #        shell: bash
-  #        run: |
-  #          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
-  #          "$HOME/go/bin/osv-scanner" scan --lockfile=pubspec.lock
-  #        continue-on-error: true
-
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
     needs: verify
     permissions:
       contents: read
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    timeout-minutes: 45
     steps:
-      - name: Resolve APP_NAME
-        id: app_name
-        shell: bash
-        run: |
-          # Prefer pubspec.yaml app_name, else fallback to repo name, else env
-          NAME_FROM_PUBSPEC=""
-          if [ -f pubspec.yaml ]; then
-            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml \
-              | head -n1 \
-              | sed -E 's/^[[:space:]]*app_name:[[:space:]]*\"?([^"]*)\"?/\1/' \
-              || true)"
-          fi
-          if [ -n "${NAME_FROM_PUBSPEC}" ]; then
-            APP_NAME_RESOLVED="${NAME_FROM_PUBSPEC}"
-          elif [ -n "${APP_NAME:-}" ]; then
-            APP_NAME_RESOLVED="${APP_NAME}"
-          else
-            APP_NAME_RESOLVED="${GITHUB_REPOSITORY##*/}"
-          fi
-          echo "APP_NAME=${APP_NAME_RESOLVED}" | tee -a "$GITHUB_ENV"
-          echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"
-
-      - name: Slugify APP_NAME (Linux)
-        id: slugify_app_linux
-        if: matrix.os != 'Windows'
-        shell: bash
-        run: |
-          APP_NAME="${{ steps.app_name.outputs.resolved }}"
-          SLUG=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')
-          echo "SLUG_APP_NAME=$SLUG" | tee -a "$GITHUB_ENV"
-          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
-
-      - name: Slugify APP_NAME (Windows)
-        if: runner.os == 'Windows'
-        id: slugify_app_windows
-        shell: pwsh
-        run: |
-          $APP_NAME = "${{ steps.app_name.outputs.resolved }}"
-          $SLUG = $APP_NAME.ToLower() -replace ' ', '-' -replace '[^a-z0-9\-]', ''
-          Write-Output "SLUG_APP_NAME=$SLUG" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Output "slug=$SLUG" >> $env:GITHUB_OUTPUT
-
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
-          fetch-depth: 0
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
 
-      - name: Cache Pub
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.pub-cache
-            .dart-tool
-          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-pub-
+      - name: Get dependencies
+        run: flutter pub get
 
-      - name: Flutter doctor
-        run: |
-          flutter --version
-          flutter doctor -v
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
 
-      # Android build prerequisites and Java on non-macOS
-      - name: Set up Java 17
-        if: runner.os == 'Linux'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Ensure Android cmdline-tools + sdkmanager in PATH
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euxo pipefail
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
-          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
-          
-          # Make sure cmdline-tools exist (runner images usually have them, but be explicit)
-          if [ ! -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            echo "cmdline-tools not found, installing via sdkmanager bootstrap..."
-            # Install base tools if missing
-            mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-            # The runner typically has 'latest'; if not, fallback to preinstalled path hints
-            ls -la "$ANDROID_SDK_ROOT" || true
-          fi
-          
-          # Export PATH now and persist for subsequent steps
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          which sdkmanager || true
-          sdkmanager --version || true
-          ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
-          ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
-
-      - name: Accept Android licenses + install packages (robust)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          SDKMGR="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMGR" ]; then
-            echo "sdkmanager not found at $SDKMGR"
-            find "$ANDROID_SDK_ROOT" -maxdepth 4 -type d -print
-            exit 1
-          fi
-          echo "sdkmanager version: $("$SDKMGR" --version)"
-          echo "Accepting licenses (ignore SIGPIPE from 'yes')..."
-          set +o pipefail
-          yes | "$SDKMGR" --licenses || true
-          set -o pipefail
-          echo "Installing required packages..."
-          set +o pipefail
-          yes | "$SDKMGR" --install \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "cmdline-tools;latest" || true
-          set -o pipefail
-          echo "Verifying installation..."
-          test -d "$ANDROID_SDK_ROOT/platform-tools" || { echo "platform-tools missing"; exit 1; }
-          test -d "$ANDROID_SDK_ROOT/build-tools/34.0.0" || { echo "build-tools 34.0.0 missing"; exit 1; }
-          test -d "$ANDROID_SDK_ROOT/platforms/android-34" || { echo "platforms;android-34 missing"; exit 1; }
-          echo "Installed packages (first 120 lines):"
-          "$SDKMGR" --list | sed -n '1,120p' || true
-
-      # Linux desktop deps
-      - name: Install Linux desktop deps
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils
-
-      - name: Toolchain info (debug)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          java -version
-          flutter --version
-          adb version || true
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "PATH=$PATH"
-
-      # Build Android (Ubuntu only to avoid duplication)
-      - name: Build Android APK
-        if: runner.os == 'Linux'
-        shell: bash
-        run: flutter build apk --release
-
-      - name: Build Android App Bundle
-        if: runner.os == 'Linux'
-        shell: bash
+      - name: Build App Bundle
         run: flutter build appbundle --release
 
-      # Build Linux
-      - name: Build Linux
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          flutter build linux --release
-          mkdir -p "build/linux"
-          SLUG="${{ steps.slugify_app_linux.outputs.slug }}"
-          zip -r "build/linux/$SLUG.zip" build/linux/x64/release/bundle/*
-          echo "Created Linux artifact: $ZIP_PATH"
-          ls -la build/linux
-
-      ##### Build Windows #####
-      - name: Build Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          flutter build windows --release
-          New-Item -ItemType Directory -Force -Path "build/windows" | Out-Null
-          $src = "build/windows/x64/runner/Release/*"
-          $SLUG = "${{ steps.slugify_app_windows.outputs.slug }}"
-          $dst = "build/windows/$SLUG.zip"
-          Compress-Archive -Path $src -DestinationPath $dst
-          Write-Output "Created Windows artifact: $DST"
-          Get-ChildItem -Path build/windows
-
-      ##### Build iOS (no codesign) + macOS #####
-      - name: Build iOS (no codesign)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: flutter build ipa --release --no-codesign
-
-      - name: Build macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          flutter build macos --release
-          mkdir -p "build/macos"
-          SLUG="${{ steps.slugify_app_linux.outputs.slug }}"
-          app_path="$(ls -d build/macos/Build/Products/Release/*.app | head -n 1)"
-          zip -r "build/macos/$SLUG.zip" "$app_path"
-          echo "Created macOS artifact: $ZIP_PATH"
-          ls -la build/macos
-
-      - name: Upload artifacts
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ runner.os }}-artifacts
+          name: android-artifacts
           path: |
-            ${{ runner.os == 'Linux' && 'build/linux/*.zip build/app/outputs/flutter-apk/*.apk build/app/outputs/bundle/release/*.aab' || '' }}
-            ${{ runner.os == 'Windows' && 'build/windows/*.zip' || '' }}
-            ${{ runner.os == 'macOS' && 'build/macos/*.zip build/ios/ipa/*.ipa' || '' }}
-          compression-level: 9
-          if-no-files-found: warn
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
           retention-days: 14
 
-      # List uploaded artifacts (Linux/macOS)
-      - name: List uploaded artifacts (Linux/macOS)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          echo "Files to be uploaded (Linux/macOS):"
-          find build -type f | sort
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    needs: verify
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # List uploaded artifacts (Windows)
-      - name: List uploaded artifacts (Windows)
-        if: runner.os == 'Windows'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Create IPA
+        run: |
+          mkdir -p build/ios/ipa
+          cd build/ios/iphoneos
+          zip -r ../ipa/Runner.ipa Runner.app
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-artifacts
+          path: build/ios/ipa/*.ipa
+          retention-days: 14
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    needs: verify
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build macOS
+        run: flutter build macos --release
+
+      - name: Create macOS ZIP
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../macos-app.zip *.app
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: macos-app.zip
+          retention-days: 14
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    needs: verify
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Create Windows ZIP
         shell: pwsh
         run: |
-          Write-Output "Files to be uploaded (Windows):"
-          Get-ChildItem -Path build -Recurse | Sort-Object FullName
-  
+          $src = "build/windows/x64/runner/Release"
+          Compress-Archive -Path "$src/*" -DestinationPath "windows-app.zip"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: windows-app.zip
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    needs: verify
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libblkid-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      - name: Create Linux ZIP
+        run: |
+          cd build/linux/x64/release
+          zip -r ../../../../linux-app.zip bundle
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: linux-app.zip
+          retention-days: 14
 
   release:
-    name: Release
+    name: Create Release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [ build-android, build-ios, build-macos, build-windows, build-linux ]
     permissions:
       contents: write
     timeout-minutes: 15
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Checkout
@@ -359,151 +261,96 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve APP_NAME
-        id: app_name
-        shell: bash
+      - name: Extract version from tag
+        id: version
         run: |
-          # Prefer pubspec.yaml app_name, else fallback to repo name, else env
-          NAME_FROM_PUBSPEC=""
-          if [ -f pubspec.yaml ]; then
-            NAME_FROM_PUBSPEC="$(grep -E '^[[:space:]]app_name:[[:space:]]*' pubspec.yaml \
-              | head -n1 \
-              | sed -E 's/^[[:space:]]*app_name:[[:space:]]*\"?([^"]*)\"?/\1/' \
-              || true)"
-          fi
-          if [ -n "${NAME_FROM_PUBSPEC}" ]; then
-            APP_NAME_RESOLVED="${NAME_FROM_PUBSPEC}"
-          elif [ -n "${APP_NAME:-}" ]; then
-            APP_NAME_RESOLVED="${APP_NAME}"
-          else
-            APP_NAME_RESOLVED="${GITHUB_REPOSITORY##*/}"
-          fi
-          echo "APP_NAME=${APP_NAME_RESOLVED}" | tee -a "$GITHUB_ENV"
-          echo "resolved=${APP_NAME_RESOLVED}" >> "$GITHUB_OUTPUT"
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download all artifacts (merge into ./artifacts)
+      - name: Get app name from pubspec.yaml
+        id: app_name
+        run: |
+          APP_NAME=$(grep '^name:' pubspec.yaml | cut -d' ' -f2 | tr -d '"' | head -1)
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME=${GITHUB_REPOSITORY##*/}
+          fi
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "name=$APP_NAME" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-          merge-multiple: true
 
-      - name: Show downloaded files (debug)
-        id: show_artifacts
-        shell: bash
+      - name: Prepare release assets
         run: |
-          echo "Artifacts directory content:"
-          ls -la ./artifacts || true
-          echo "--- Find (depth 5) ---"
-          find ./artifacts -maxdepth 5 -type f -print | sort || true
-          echo "--- Disk usage ---"
-          du -sh ./artifacts || true
-
-      - name: Extract version from tag
-        id: app_version
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "clean=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Format commit date (UTC)
-        id: format_date
-        shell: bash
-        run: echo "formatted_date=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
-
-      - name: Prepare distribution folder and rename assets
-        id: rename_assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          APP_NAME="${{ steps.app_name.outputs.resolved }}"
-          VER="${{ steps.app_version.outputs.clean }}"
-          
-          # Slugify app name for filenames
-          SLUG="$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')"
           mkdir -p dist
-          shopt -s nullglob
-          echo "Renaming assets with slug='${SLUG}' and version='${VER}'"
-          echo "Artifacts tree:"
-          find artifacts -type f | sort || true
+          APP_NAME="${{ steps.app_name.outputs.name }}"
+          VERSION="${{ steps.version.outputs.version }}"
           
-          # Android APK(s)
-          for f in artifacts/build/app/outputs/flutter-apk/*.apk; do
-            [ -e "$f" ] || continue
-            base="$(basename "$f")"
-            cp -v "$f" "dist/${SLUG}-v${VER}-android-${base}"
-          done
+          # Android
+          if [ -d "artifacts/android-artifacts" ]; then
+            for file in artifacts/android-artifacts/*.apk; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
+              fi
+            done
+            for file in artifacts/android-artifacts/*.aab; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
+              fi
+            done
+          fi
           
-          # Android AAB(s)
-          for f in artifacts/build/app/outputs/bundle/release/*.aab; do
-            [ -e "$f" ] || continue
-            base="$(basename "$f")"
-            cp -v "$f" "dist/${SLUG}-v${VER}-android-${base}"
-          done
+          # iOS
+          if [ -f "artifacts/ios-artifacts/Runner.ipa" ]; then
+            cp "artifacts/ios-artifacts/Runner.ipa" "dist/${APP_NAME}-${VERSION}-ios.ipa"
+          fi
           
-          # iOS IPA(s)
-          for f in artifacts/build/ios/ipa/*.ipa; do
-            [ -e "$f" ] || continue
-            base="$(basename "$f")"
-            cp -v "$f" "dist/${SLUG}-v${VER}-ios-${base}"
-          done
+          # macOS
+          if [ -f "artifacts/macos-artifacts/macos-app.zip" ]; then
+            cp "artifacts/macos-artifacts/macos-app.zip" "dist/${APP_NAME}-${VERSION}-macos.zip"
+          fi
           
-          # Windows ZIP(s)
-          for f in artifacts/build/windows/*.zip; do
-            [ -e "$f" ] || continue
-            base="$(basename "$f")"
-            cp -v "$f" "dist/${SLUG}-v${VER}-windows-${base}"
-          done
+          # Windows
+          if [ -f "artifacts/windows-artifacts/windows-app.zip" ]; then
+            cp "artifacts/windows-artifacts/windows-app.zip" "dist/${APP_NAME}-${VERSION}-windows.zip"
+          fi
           
-          # Linux ZIP(s)
-          for f in artifacts/build/linux/*.zip; do
-            [ -e "$f" ] || continue
-            base="$(basename "$f")"
-            cp -v "$f" "dist/${SLUG}-v${VER}-linux-${base}"
-          done
+          # Linux
+          if [ -f "artifacts/linux-artifacts/linux-app.zip" ]; then
+            cp "artifacts/linux-artifacts/linux-app.zip" "dist/${APP_NAME}-${VERSION}-linux.zip"
+          fi
           
-          # macOS ZIP(s)
-          for f in artifacts/build/macos/*.zip; do
-            [ -e "$f" ] || continue
-            base="$(basename "$f")"
-            cp -v "$f" "dist/${SLUG}-v${VER}-macos-${base}"
-          done
-          
-          echo "Final dist content:"
-          ls -la dist || true
-          echo "---"
-          find dist -maxdepth 1 -type f -print | sort || true
-          # Optional: uncomment to fail if no files prepared
-          # test -n "$(ls -A dist 2>/dev/null)" || { echo "No assets found in dist"; exit 1; }
+          echo "Release assets prepared:"
+          ls -la dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "${{ steps.app_name.outputs.resolved }} ${{ env.APP_VERSION }}"
+          name: "${{ env.APP_NAME }} v${{ env.VERSION }}"
           body: |
-            ## 🚀 Release ${{ steps.app_name.outputs.resolved }} ${{ env.APP_VERSION }}
-            **🔖 Version:** `${{ env.APP_VERSION }}`
+            ## 🚀 Release ${{ env.APP_NAME }} v${{ env.VERSION }}
+            
+            **📱 Platforms supported:**
+            - Android (APK & AAB)
+            - iOS (IPA - requires signing)
+            - macOS (ZIP)
+            - Windows (ZIP)
+            - Linux (ZIP)
+            
+            **📋 Changes:**
+            See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+            
             **🔗 Commit:** `${{ github.sha }}`
-            **📅 Date:** ${{ steps.format_date.outputs.formatted_date }}
-            
-            **🏃‍♂️ Workflow Run:** [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            
-            **📋 Changelog:** [changelog](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)
-            
-            ### 📦 Included Artifacts
-            Android (APK/AAB), iOS (IPA), Windows (ZIP), macOS (ZIP), Linux (ZIP).
+            **📅 Date:** ${{ github.event.head_commit.timestamp }}
             
             ---
-            _Generated automatically by CI/CD pipeline._
-          files: ./dist/**
+            _Generated automatically by GitHub Actions_
+          files: ./dist/*
           draft: false
           prerelease: false
-
-      - name: Summary (debug)
-        id: summary
-        shell: bash
-        run: |
-          echo "Release created for tag: ${{ github.ref_name }}"
-          echo "Name: ${{ steps.app_name.outputs.resolved }} v${{ steps.app_version.outputs.clean }}"
-          echo "Assets uploaded:"
-          ls -la dist || true
