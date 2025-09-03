@@ -220,6 +220,39 @@ jobs:
       - name: Extract version from tag
         run: echo "APP_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
+      # Install git-cliff without Docker (prebuilt binary)
+      - name: Install git-cliff (prebuilt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .bin
+          curl -sSLo cliff.tgz https://github.com/orhun/git-cliff/releases/latest/download/git-cliff-x86_64-unknown-linux-gnu.tar.gz
+          tar -xzf cliff.tgz -C .bin git-cliff
+          echo "$PWD/.bin" >> "$GITHUB_PATH"
+          git-cliff --version
+
+      # Generate changelog (keeps the same id and outputs.content as before)
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f cliff.toml ]]; then
+            git-cliff -c cliff.toml --latest --strip header > CHANGELOG.md || true
+          else
+            git-cliff --latest --strip header > CHANGELOG.md || true
+          fi
+          {
+            echo 'content<<EOF'
+            cat CHANGELOG.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Format commit date (UTC)
+        id: format_date
+        shell: bash
+        run: echo "formatted_date=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
+
       - name: Rename assets with version
         shell: bash
         run: |
@@ -265,21 +298,6 @@ jobs:
             base="$(basename "$f")"
             cp -v "$f" "dist/${slug}-${ver}-macos-${base}"
           done
-
-      - name: Generate changelog
-        id: changelog
-        uses: orhun/git-cliff-action@v2
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: CHANGELOG.md
-        continue-on-error: true
-
-      - name: Format commit date (UTC)
-        id: format_date
-        shell: bash
-        run: echo "formatted_date=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
