@@ -1,11 +1,20 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'beauty_center_app.dart';
 import 'core/connectivity/connectivity_repository.dart';
+import 'not_supported_os_app.dart';
 
 void main() async {
+  if (kIsWeb || !(Platform.isAndroid || Platform.isWindows)) {
+    runApp(const NotSupportedOsApp());
+    return;
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
   await ConnectivityRepository.instance.init();
-  runApp(ProviderScope(child: BeautyCenterApp()));
+  runApp(ProviderScope(child: const BeautyCenterApp()));
 }

@@ -22,13 +22,8 @@ class HomePageDesktop extends ConsumerStatefulWidget {
 }
 
 class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
-  // Cache pages to preserve state and avoid rebuilds bottom nav (compact layout).
-  //late final List<Widget?> _pageCache;
-
   GoRouter? _router;
   VoidCallback? _routerListener;
-
-  bool _initializedControllers = false;
   late final SidebarXController _railController;
 
   @override
@@ -38,6 +33,13 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
     final initialTabIndex = appRouteFromSegmentOrDefault(
       widget.initialSegment,
     ).index;
+
+    _railController = SidebarXController(
+      selectedIndex: initialTabIndex,
+      extended: false,
+    );
+
+    _railController.addListener(_onRailSelectionChanged);
 
     // Sync provider state on first build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,43 +57,11 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
       if (_router != null && _routerListener != null) {
         _router!.routerDelegate.removeListener(_routerListener!);
       }
+
       _router = router;
       _routerListener = _onRouteChanged;
       _router!.routerDelegate.addListener(_routerListener!);
     }
-
-    if (!_initializedControllers) {
-      _initializedControllers = true;
-
-      final initialTabIndex = appRouteFromSegmentOrDefault(
-        widget.initialSegment,
-      ).index;
-
-      // _pageCache = List<Widget?>.filled(
-      //   AppRoute.values.length,
-      //   null,
-      //   growable: false,
-      // );
-
-      _railController = SidebarXController(
-        selectedIndex: initialTabIndex,
-        extended: false,
-      );
-      _railController.addListener(() {
-        _setIndex(_railController.selectedIndex);
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _railController.dispose();
-
-    if (_router != null && _routerListener != null) {
-      _router!.routerDelegate.removeListener(_routerListener!);
-    }
-
-    super.dispose();
   }
 
   void _onRouteChanged() {
@@ -104,9 +74,26 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
         : kDefaultRoute.segment;
     final route = appRouteFromSegmentOrDefault(segment);
     final index = route.index;
+
     if (index != ref.read(homeTabProvider.notifier).index) {
       _railController.selectIndex(index);
     }
+  }
+
+  @override
+  void dispose() {
+    _railController.removeListener(_onRailSelectionChanged);
+    _railController.dispose();
+
+    if (_router != null && _routerListener != null) {
+      _router!.routerDelegate.removeListener(_routerListener!);
+    }
+
+    super.dispose();
+  }
+
+  void _onRailSelectionChanged() {
+    _setIndex(_railController.selectedIndex);
   }
 
   // Unified setter to keep rail, page, router, and provider in sync.
@@ -125,13 +112,12 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
     }
   }
 
-  // Widget _getPage(int index) {
-  //   final cached = _pageCache[index];
-  //   if (cached != null) return cached;
-  //   final built = AppRoute.values[index].buildPage;
-  //   _pageCache[index] = built;
-  //   return built;
-  // }
+  Widget _buildPage(BuildContext context, int index) {
+    return KeyedSubtree(
+      key: ValueKey('page_$index'),
+      child: AppRoute.values[index].buildPage,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -161,16 +147,13 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
             ),
             Expanded(
               child: SafeArea(
-                child: LazyKeepAliveStack(
-                  index: ref.read(homeTabProvider.notifier).index,
-                  itemCount: AppRoute.values.length,
-                  // Build on first access; LazyKeepAliveStack will cache it.
-                  itemBuilder: (context, index) {
-                    // Important: return a stable page for each index.
-                    // The widget will be kept mounted once built.
-                    return KeyedSubtree(
-                      key: ValueKey('page_$index'),
-                      child: AppRoute.values[index].buildPage,
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final currentIndex = ref.watch(homeTabProvider).index;
+                    return LazyKeepAliveStack(
+                      index: currentIndex,
+                      itemCount: AppRoute.values.length,
+                      itemBuilder: _buildPage,
                     );
                   },
                 ),

@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "menu": "Menu",
+  "notSupportedOsMessage": "This application is not supported on your device!\nOnly Windows and Android are supported.",
   "onlineBanner": "You are online!",
   "offlineBanner": "You are currently offline!",
   "appointments": "Appointments",

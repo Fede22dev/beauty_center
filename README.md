@@ -1,4 +1,4 @@
-# 💅 BeautyCenter
+# 💅 Beauty Center
 
 > Cross-platform appointment manager for beauty and wellness centers — powered by Flutter & Dart.
 
@@ -6,7 +6,7 @@
 
 ## 📊 Status & Metrics
 
-[![Build](https://github.com/Fede22dev/beauty_center/actions/workflows/build_and_release.yml/badge.svg)](https://github.com/Fede22dev/beauty_center/actions)
+[![Build](https://github.com/Fede22dev/beauty_center/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/Fede22dev/beauty_center/actions/workflows/build-and-release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/Fede22dev/beauty_center?label=version&sort=semver)](https://github.com/Fede22dev/beauty_center/releases)
 [![Downloads](https://img.shields.io/github/downloads/Fede22dev/beauty_center/total)](https://github.com/Fede22dev/beauty_center/releases)
 [![License](https://img.shields.io/github/license/Fede22dev/beauty_center)](./LICENSE)
@@ -23,15 +23,16 @@
 
 ---
 
-## ✨ What is BeautyCenter?
+## ✨ What is Beauty Center?
 
-**BeautyCenter** is a sleek and modular **cross-platform app** built in **Flutter**.  
+**Beauty Center** is a sleek and modular **cross-platform app** built in **Flutter**.  
 It helps beauty and wellness centers manage:
 
 - 🧍‍♀️ Clients
 - 📅 Appointments
 - 💆‍♀️ Treatments
-- ⚙️ Settings & business logic
+- 📊 Statistics
+- ⚙️ Settings
 
 > 🧠 Designed for offline-first usage, with optional cloud sync in future releases.
 
@@ -50,9 +51,9 @@ The app follows **clean architecture** with **Riverpod for state management**:
 ## 🔮 Roadmap
 
 - [ ] ☁️ **Cloud Sync** via [Supabase](https://supabase.com)
-- [ ] 🖥️ **Desktop builds** (Windows, Linux, macOS)
-- [ ] 📱 **Mobile builds** (Android, iOS)
-- [ ] 📊 **Client Analytics** & visit history
+- [ ] 🖥️ **Desktop builds** (Windows)
+- [ ] 📱 **Mobile builds** (Android)
+- [ ] 📊 **Client Analytics** & shop statistics
 
 ---
 
@@ -61,18 +62,22 @@ The app follows **clean architecture** with **Riverpod for state management**:
 Clone the repo and fetch dependencies:
 
 ```bash
-git clone https://github.com/Fede22dev/BeautyCenter.git
-cd BeautyCenter
+git clone https://github.com/Fede22dev/beauty_center.git
+cd beauty_center
 flutter pub get
+
+flutter gen-l10n # To generate localization files
 
 flutter run
 
-flutter run -d windows # or linux / macos
+flutter run -d windows
 
-flutter build windows # or linux / macos 
+flutter build windows
 
-flutter build apk # or ios
+flutter build apk
 ```
+
+This app developed and tested only on **Windows** and **Android**
 
 ---
 

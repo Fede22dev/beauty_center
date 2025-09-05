@@ -29,7 +29,6 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   GoRouter? _router;
   VoidCallback? _routerListener;
 
-  bool _initializedControllers = false;
   late final PageController _pageController;
   late final ScrollController _navScrollController;
 
@@ -37,9 +36,23 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   void initState() {
     super.initState();
 
+    _pageCache = List<Widget?>.filled(
+      AppRoute.values.length,
+      null,
+      growable: false,
+    );
+
+    _tabKeys = List<GlobalKey>.generate(
+      AppRoute.values.length,
+      (_) => GlobalKey(),
+    );
+
     final initialTabIndex = appRouteFromSegmentOrDefault(
       widget.initialSegment,
     ).index;
+
+    _pageController = PageController(initialPage: initialTabIndex);
+    _navScrollController = ScrollController();
 
     // Sync provider state on first build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -58,31 +71,10 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
       if (_router != null && _routerListener != null) {
         _router!.routerDelegate.removeListener(_routerListener!);
       }
+
       _router = router;
       _routerListener = _onRouteChanged;
       _router!.routerDelegate.addListener(_routerListener!);
-    }
-
-    if (!_initializedControllers) {
-      _initializedControllers = true;
-
-      final initialTabIndex = appRouteFromSegmentOrDefault(
-        widget.initialSegment,
-      ).index;
-
-      _pageCache = List<Widget?>.filled(
-        AppRoute.values.length,
-        null,
-        growable: false,
-      );
-
-      _tabKeys = List<GlobalKey>.generate(
-        AppRoute.values.length,
-        (_) => GlobalKey(),
-      );
-
-      _pageController = PageController(initialPage: initialTabIndex);
-      _navScrollController = ScrollController();
     }
   }
 
@@ -155,12 +147,10 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     );
   }
 
-  Widget _getPage(int index) {
-    final cached = _pageCache[index];
-    if (cached != null) return cached;
-    final built = AppRoute.values[index].buildPage;
-    _pageCache[index] = built;
-    return built;
+  Widget _buildCachedPage(int index) {
+    // Lazy loading con cache
+    _pageCache[index] ??= AppRoute.values[index].buildPage;
+    return _pageCache[index]!;
   }
 
   PreferredSizeWidget _buildAppBar(ColorScheme colorScheme) {
@@ -175,6 +165,16 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
                 .withValues(alpha: 0.35),
             colorScheme.surfaceContainer,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: AppRoute
+                  .values[ref.read(homeTabProvider.notifier).index]
+                  .color
+                  .withValues(alpha: 0.1),
+              blurRadius: 8.r,
+              offset: Offset(0, 2.h),
+            ),
+          ],
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
         ),
         child: SafeArea(
@@ -217,7 +217,8 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
                         physics: const BouncingScrollPhysics(),
                         itemCount: AppRoute.values.length,
                         onPageChanged: _onPageChanged,
-                        itemBuilder: (context, index) => _getPage(index),
+                        itemBuilder: (context, index) =>
+                            _buildCachedPage(index),
                       ),
                       Positioned(
                         left: 0.25.sw,
@@ -239,13 +240,18 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: BottomNav(
-          selectedIndex: ref.read(homeTabProvider.notifier).index,
-          onTabChange: _onBottomNavTabChanged,
-          navScrollController: _navScrollController,
-          tabKeys: _tabKeys,
-        ),
+      bottomNavigationBar: Consumer(
+        builder: (context, ref, _) {
+          final selectedIndex = ref.watch(homeTabProvider).index;
+          return SafeArea(
+            child: BottomNav(
+              selectedIndex: selectedIndex,
+              onTabChange: _onBottomNavTabChanged,
+              navScrollController: _navScrollController,
+              tabKeys: _tabKeys,
+            ),
+          );
+        },
       ),
     );
   }

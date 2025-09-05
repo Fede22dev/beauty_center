@@ -41,37 +41,51 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
       final minLen = newCache.length < _pageCache.length
           ? newCache.length
           : _pageCache.length;
+
       for (var i = 0; i < minLen; i++) {
         newCache[i] = _pageCache[i];
       }
+
       _pageCache = newCache;
     }
   }
 
+  Widget _buildAndCacheItem(int index) {
+    if (_pageCache[index] == null) {
+      _pageCache[index] = widget.itemBuilder(context, index);
+    }
+
+    return _pageCache[index]!;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final children = List<Widget>.generate(widget.itemCount, (i) {
-      if (i == widget.index) {
+    final children = List<Widget>.generate(widget.itemCount, (index) {
+      if (index == widget.index) {
         // Build on first selection (lazy).
-        _pageCache[i] ??= widget.itemBuilder(context, i);
-        final child = _pageCache[i]!;
+        final child = _buildAndCacheItem(index);
+        
         return Offstage(
           offstage: false,
           child: TickerMode(
             enabled: true,
-            child: KeyedSubtree(key: ValueKey('lazy_tab_$i'), child: child),
+            child: KeyedSubtree(key: ValueKey('lazy_tab_$index'), child: child),
           ),
         );
       } else {
-        final cached = _pageCache[i];
+        final cached = _pageCache[index];
         if (cached == null) {
           return const SizedBox.shrink();
         }
+
         return Offstage(
           offstage: true,
           child: TickerMode(
             enabled: false,
-            child: KeyedSubtree(key: ValueKey('lazy_tab_$i'), child: cached),
+            child: KeyedSubtree(
+              key: ValueKey('lazy_tab_$index'),
+              child: cached,
+            ),
           ),
         );
       }
