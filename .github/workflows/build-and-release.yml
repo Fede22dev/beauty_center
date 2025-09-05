@@ -86,7 +86,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate localization files
-        run: flutter gen-l10n
+        run: flutter pub run intl_utils:generate
 
       - name: Build APK
         run: flutter build apk --release --split-per-abi
@@ -131,7 +131,7 @@ jobs:
   #        run: flutter pub get
   #
   #      - name: Generate localization files
-  #        run: flutter gen-l10n
+  #        run: flutter pub run intl_utils:generate
   #
   #      - name: Build iOS (no codesign)
   #        run: flutter build ios --release --no-codesign
@@ -172,7 +172,7 @@ jobs:
   #        run: flutter pub get
   #
   #      - name: Generate localization files
-  #        run: flutter gen-l10n
+  #        run: flutter pub run intl_utils:generate
   #
   #      - name: Build macOS
   #        run: flutter build macos --release
@@ -239,7 +239,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate localization files
-        run: flutter gen-l10n
+        run: flutter pub run intl_utils:generate
 
       - name: Build Windows
         run: flutter build windows --release
@@ -293,7 +293,7 @@ jobs:
   #        run: flutter pub get
   #
   #      - name: Generate localization files
-  #        run: flutter gen-l10n
+  #        run: flutter pub run intl_utils:generate
   #
   #      - name: Build Linux
   #        run: flutter build linux --release
