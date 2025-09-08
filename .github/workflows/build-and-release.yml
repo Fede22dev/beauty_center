@@ -184,17 +184,14 @@ jobs:
           fi
           
           echo "Fastforge build env vars:"
+          echo "  RELEASE_TYPE=$RELEASE_TYPE"
           echo "  APP_NAME=$APP_NAME"
           echo "  APP_VERSION=$APP_VERSION"
-          echo "  BUILD_NUMBER=$BUILD_NUMBER"
-          echo "  RELEASE_TYPE=$RELEASE_TYPE"
-          echo ""
           
           fastforge release --name $RELEASE_TYPE --jobs android-apk-universal,android-apk-split
         env:
           APP_NAME: ${{ needs.setup.outputs.app_name }}
           APP_VERSION: ${{ needs.setup.outputs.app_version }}
-          BUILD_NUMBER: ${{ needs.setup.outputs.build_number }}
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -243,17 +240,16 @@ jobs:
           }
           
           Write-Host "=== Fastforge build env variables ==="
+          Write-Host "  RELEASE_TYPE: $RELEASE_TYPE"
           Write-Host "  APP_NAME: $env:APP_NAME"
           Write-Host "  APP_VERSION: $env:APP_VERSION"
           Write-Host "  BUILD_NUMBER: $env:BUILD_NUMBER"
-          Write-Host ""
           
           fastforge release --name $RELEASE_TYPE --jobs windows-installer
         env:
           APP_NAME: ${{ needs.setup.outputs.app_name }}
           APP_VERSION: ${{ needs.setup.outputs.app_version }}
           BUILD_NUMBER: ${{ needs.setup.outputs.build_number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

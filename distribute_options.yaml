@@ -18,7 +18,6 @@ releases:
           target: apk
           build_args:
             build-name: $APP_VERSION
-            build-number: $BUILD_NUMBER
             dart-define:
               ENVIRONMENT: production
 
@@ -28,7 +27,6 @@ releases:
           target: apk
           build_args:
             build-name: $APP_VERSION
-            build-number: $BUILD_NUMBER
             split-per-abi: true
             dart-define:
               ENVIRONMENT: production
@@ -41,7 +39,6 @@ releases:
           build_args:
             build-name: $APP_VERSION
             build-number: $BUILD_NUMBER
-            target-platform: windows-x64
             dart-define:
               ENVIRONMENT: production
         config:
@@ -70,7 +67,6 @@ releases:
           target: apk
           build_args:
             build-name: $APP_VERSION
-            build-number: $BUILD_NUMBER
             dart-define:
               ENVIRONMENT: beta
 
@@ -80,7 +76,6 @@ releases:
           target: apk
           build_args:
             build-name: $APP_VERSION
-            build-number: $BUILD_NUMBER
             split-per-abi: true
             dart-define:
               ENVIRONMENT: beta
@@ -93,7 +88,6 @@ releases:
           build_args:
             build-name: $APP_VERSION
             build-number: $BUILD_NUMBER
-            target-platform: windows-x64
             dart-define:
               ENVIRONMENT: beta
         config:
