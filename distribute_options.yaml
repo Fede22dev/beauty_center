@@ -64,7 +64,7 @@ releases:
   - name: beta
     jobs:
       # Android APKs beta
-      - name: android-apk-universal-beta
+      - name: android-apk-universal
         package:
           platform: android
           target: apk
@@ -74,19 +74,19 @@ releases:
             dart-define:
               ENVIRONMENT: beta
 
-      #      - name: android-apk-split-beta
-      #        package:
-      #          platform: android
-      #          target: apk
-      #          build_args:
-      #            build-name: ${APP_VERSION}-beta
-      #            build-number: ${BUILD_NUMBER}
-      #            split-per-abi: true
-      #            dart-define:
-      #              ENVIRONMENT: beta
+      - name: android-apk-split
+        package:
+          platform: android
+          target: apk
+          build_args:
+            build-name: ${APP_VERSION}-beta
+            build-number: ${BUILD_NUMBER}
+            split-per-abi: true
+            dart-define:
+              ENVIRONMENT: beta
 
       # Windows installer beta
-      - name: windows-installer-beta
+      - name: windows-installer
         package:
           platform: windows
           target: exe
