@@ -183,11 +183,12 @@ jobs:
             RELEASE_TYPE="production"
           fi
           
-          echo "🔎 Env vars Fastforge:"
+          echo "Fastforge build env vars:"
           echo "  APP_NAME=$APP_NAME"
           echo "  APP_VERSION=$APP_VERSION"
           echo "  BUILD_NUMBER=$BUILD_NUMBER"
           echo "  RELEASE_TYPE=$RELEASE_TYPE"
+          echo ""
           
           fastforge release --name $RELEASE_TYPE --jobs android-apk-universal,android-apk-split
         env:
@@ -233,16 +234,6 @@ jobs:
       - name: Install Fastforge
         run: dart pub global activate fastforge
 
-      - name: Debug - Show Fastforge config
-        run: |
-          Write-Host "=== Current distribute_options.yaml ==="
-          Get-Content distribute_options.yaml
-          Write-Host ""
-          Write-Host "=== Environment Variables ==="
-          Write-Host "APP_NAME: $env:APP_NAME"
-          Write-Host "APP_VERSION: $env:APP_VERSION"
-          Write-Host "BUILD_NUMBER: $env:BUILD_NUMBER"
-
       - name: Build Windows with Fastforge
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch") {
@@ -250,6 +241,12 @@ jobs:
           } else {
             $RELEASE_TYPE = "production"
           }
+          
+          Write-Host "=== Fastforge build env variables ==="
+          Write-Host "  APP_NAME: $env:APP_NAME"
+          Write-Host "  APP_VERSION: $env:APP_VERSION"
+          Write-Host "  BUILD_NUMBER: $env:BUILD_NUMBER"
+          Write-Host ""
           
           fastforge release --name $RELEASE_TYPE --jobs windows-installer
         env:

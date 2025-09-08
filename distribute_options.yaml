@@ -1,9 +1,9 @@
 # Fastforge Configuration
 # Variables filled by GitHub workflow action
 variables:
-  APP_NAME: ${APP_NAME}
-  APP_VERSION: ${APP_VERSION}
-  BUILD_NUMBER: ${BUILD_NUMBER}
+  APP_NAME: $APP_NAME
+  APP_VERSION: $APP_VERSION
+  BUILD_NUMBER: $BUILD_NUMBER
 
 output: dist/
 
@@ -17,8 +17,8 @@ releases:
           platform: android
           target: apk
           build_args:
-            build-name: ${APP_VERSION}
-            build-number: ${BUILD_NUMBER}
+            build-name: $APP_VERSION
+            build-number: $BUILD_NUMBER
             dart-define:
               ENVIRONMENT: production
 
@@ -27,8 +27,8 @@ releases:
           platform: android
           target: apk
           build_args:
-            build-name: ${APP_VERSION}
-            build-number: ${BUILD_NUMBER}
+            build-name: $APP_VERSION
+            build-number: $BUILD_NUMBER
             split-per-abi: true
             dart-define:
               ENVIRONMENT: production
@@ -39,16 +39,16 @@ releases:
           platform: windows
           target: exe
           build_args:
-            build-name: ${APP_VERSION}
-            build-number: ${BUILD_NUMBER}
+            build-name: $APP_VERSION
+            build-number: $BUILD_NUMBER
             target-platform: windows-x64
             dart-define:
               ENVIRONMENT: production
         config:
           exe:
-            installer_name: "${APP_NAME}_Setup_v${APP_VERSION}"
+            installer_name: "$APP_NAME_Setup_v$APP_VERSION"
             include_redistributables: true
-            install_dir_name: ${APP_NAME}
+            install_dir_name: $APP_NAME
             create_start_menu_entry: true
             create_desktop_shortcut: true
 
@@ -69,8 +69,8 @@ releases:
           platform: android
           target: apk
           build_args:
-            build-name: ${APP_VERSION}-beta
-            build-number: ${BUILD_NUMBER}
+            build-name: $APP_VERSION
+            build-number: $BUILD_NUMBER
             dart-define:
               ENVIRONMENT: beta
 
@@ -79,8 +79,8 @@ releases:
           platform: android
           target: apk
           build_args:
-            build-name: ${APP_VERSION}-beta
-            build-number: ${BUILD_NUMBER}
+            build-name: $APP_VERSION
+            build-number: $BUILD_NUMBER
             split-per-abi: true
             dart-define:
               ENVIRONMENT: beta
@@ -91,15 +91,15 @@ releases:
           platform: windows
           target: exe
           build_args:
-            build-name: ${APP_VERSION}-beta
-            build-number: ${BUILD_NUMBER}
+            build-name: $APP_VERSION
+            build-number: $BUILD_NUMBER
             target-platform: windows-x64
             dart-define:
               ENVIRONMENT: beta
         config:
           exe:
-            installer_name: "${APP_NAME}_Setup_v${APP_VERSION}-beta"
+            installer_name: "$APP_NAME_Setup_v$APP_VERSION-beta"
             include_redistributables: true
-            install_dir_name: ${APP_NAME}
+            install_dir_name: $APP_NAME
             create_start_menu_entry: true
             create_desktop_shortcut: true
