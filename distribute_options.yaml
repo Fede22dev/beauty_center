@@ -1,4 +1,5 @@
 # Fastforge Configuration
+# Variables filled by GitHub workflow action
 variables:
   APP_NAME: ${APP_NAME}
   APP_VERSION: ${APP_VERSION}
@@ -62,7 +63,8 @@ releases:
   # Development/Beta release
   - name: beta
     jobs:
-      - name: android-apk-beta
+      # Android APKs beta
+      - name: android-apk-universal-beta
         package:
           platform: android
           target: apk
@@ -72,6 +74,18 @@ releases:
             dart-define:
               ENVIRONMENT: beta
 
+      - name: android-apk-split-beta
+        package:
+          platform: android
+          target: apk
+          build_args:
+            build-name: ${APP_VERSION}-beta
+            build-number: ${BUILD_NUMBER}
+            split-per-abi: true
+            dart-define:
+              ENVIRONMENT: beta
+
+      # Windows installer beta
       - name: windows-installer-beta
         package:
           platform: windows
@@ -86,3 +100,6 @@ releases:
           exe:
             installer_name: "${APP_NAME}_Setup_v${APP_VERSION}-beta"
             include_redistributables: true
+            install_dir_name: ${APP_NAME}
+            create_start_menu_entry: true
+            create_desktop_shortcut: true

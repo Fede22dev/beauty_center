@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build and Release (Fastforge)
 
 on:
   push:
@@ -200,7 +200,7 @@ jobs:
     runs-on: windows-latest
     needs: [ setup, verify ]
     permissions:
-      contents: write
+      contents: write  # Needed for Fastforge GitHub publisher
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -223,6 +223,16 @@ jobs:
 
       - name: Install Fastforge
         run: dart pub global activate fastforge
+
+      - name: Debug - Show Fastforge config
+        run: |
+          Write-Host "=== Current distribute_options.yaml ==="
+          Get-Content distribute_options.yaml
+          Write-Host ""
+          Write-Host "=== Environment Variables ==="
+          Write-Host "APP_NAME: $env:APP_NAME"
+          Write-Host "APP_VERSION: $env:APP_VERSION"
+          Write-Host "BUILD_NUMBER: $env:BUILD_NUMBER"
 
       - name: Build Windows with Fastforge
         run: |

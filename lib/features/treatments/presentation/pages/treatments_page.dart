@@ -13,7 +13,7 @@ class _TreatmentsPageState extends State<TreatmentsPage>
   bool get wantKeepAlive => true;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     super.build(context);
     print('TreatmentsPage bui');
     return const Center(child: Text('trats'));

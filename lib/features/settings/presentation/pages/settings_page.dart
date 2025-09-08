@@ -13,7 +13,7 @@ class _SettingsPageState extends State<SettingsPage>
   bool get wantKeepAlive => true;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     super.build(context);
     print('SettingsPage build');
     return const Center(child: Text('settings'));

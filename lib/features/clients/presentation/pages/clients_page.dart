@@ -15,14 +15,14 @@ class _ClientsPageState extends State<ClientsPage>
   bool get wantKeepAlive => true; // Keep this page alive.
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     super.build(context); // Required when using AutomaticKeepAliveClientMixin.
     print('ClientsPage build');
     return ListView.builder(
       key: const PageStorageKey('clients_list'), // Preserve scroll offset.
       controller: _scroll,
       itemCount: 100,
-      itemBuilder: (_, i) => ListTile(title: Text('Client #$i')),
+      itemBuilder: (_, final i) => ListTile(title: Text('Client #$i')),
     );
   }
 }
