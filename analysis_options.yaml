@@ -5,7 +5,8 @@ analyzer:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
     - "**/generated/**"
-    - "lib/l10n/generated/**"
+    - "lib/l10n/**/*.dart"
+
   language:
     strict-casts: true
     strict-inference: true

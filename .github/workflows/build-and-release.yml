@@ -4,6 +4,16 @@ on:
   push:
     tags:
       - 'v*'  # e.g., v1.2.3
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - production
+          - beta
 
 concurrency:
   group: release-${{ github.ref }}
@@ -14,11 +24,72 @@ env:
   JAVA_VERSION: '17'
 
 jobs:
+  # Setup Job to extract common information
+  setup:
+    name: Setup Release Info
+    runs-on: ubuntu-latest
+    outputs:
+      app_name: ${{ steps.app_info.outputs.app_name }}
+      app_version: ${{ steps.app_info.outputs.app_version }}
+      build_number: ${{ steps.app_info.outputs.build_number }}
+      release_name: ${{ steps.app_info.outputs.release_name }}
+      is_prerelease: ${{ steps.app_info.outputs.is_prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract app info
+        id: app_info
+        run: |
+          # Estrai app name dal pubspec.yaml
+          APP_NAME=$(grep '^name:' pubspec.yaml | sed 's/name: *//' | tr -d '"' | head -1)
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME=${GITHUB_REPOSITORY##*/}
+          fi
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+            APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1 | tr -d '"' | head -1)
+            BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f2 | tr -d '"' | head -1)
+            if [ -z "$BUILD_NUMBER" ]; then
+              BUILD_NUMBER=$(git rev-list --count HEAD)
+            fi
+            IS_PRERELEASE="true"
+            if [ "$RELEASE_TYPE" = "production" ]; then
+              IS_PRERELEASE="false"
+            fi
+            RELEASE_NAME="$APP_NAME v$APP_VERSION ($RELEASE_TYPE)"
+          else
+            RELEASE_TYPE="production"
+            APP_VERSION=${GITHUB_REF#refs/tags/v}
+            BUILD_NUMBER=$(git rev-list --count HEAD)
+            IS_PRERELEASE="false"
+            RELEASE_NAME="$APP_NAME v$APP_VERSION"
+          fi
+          
+          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          
+          # Debug output
+          echo "🚀 Release Info:"
+          echo "  App Name: $APP_NAME"
+          echo "  Version: $APP_VERSION"
+          echo "  Build Number: $BUILD_NUMBER"
+          echo "  Release Type: $RELEASE_TYPE"
+          echo "  Is Prerelease: $IS_PRERELEASE"
+
   verify:
     name: Verify (lint, test, scan)
     runs-on: ubuntu-latest
+    needs: setup
     permissions:
       contents: read
+      security-events: write
     timeout-minutes: 20
     steps:
       - name: Harden Runner
@@ -49,17 +120,26 @@ jobs:
         run: flutter pub deps
 
       - name: Analyze code
-        run: flutter analyze
+        run: flutter analyze --fatal-infos
+        continue-on-error: true
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
         continue-on-error: true
 
       - name: Run tests
         run: flutter test --coverage --reporter=expanded
         continue-on-error: true
 
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v3
+      #   with:
+      #     file: coverage/lcov.info
+
   build-android:
     name: Build Android
     runs-on: ubuntu-latest
-    needs: verify
+    needs: [ setup, verify ]
     permissions:
       contents: read
     timeout-minutes: 45
@@ -72,6 +152,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -88,135 +169,38 @@ jobs:
       - name: Generate localization files
         run: flutter gen-l10n
 
-      - name: Build APK
-        run: flutter build apk --release --split-per-abi
+      - name: Install Fastforge
+        run: dart pub global activate fastforge
 
-      #      - name: Build App Bundle
-      #        run: flutter build appbundle --release
+      - name: Build Android with Fastforge
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          else
+            RELEASE_TYPE="production"
+          fi
+          
+          fastforge release --name $RELEASE_TYPE --jobs android-apk-universal,android-apk-split
+        env:
+          APP_NAME: ${{ needs.setup.outputs.app_name }}
+          APP_VERSION: ${{ needs.setup.outputs.app_version }}
+          BUILD_NUMBER: ${{ needs.setup.outputs.build_number }}
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-artifacts
           path: |
-            build/app/outputs/flutter-apk/*.apk
-          #            build/app/outputs/bundle/release/*.aab
-          retention-days: 14
-
-  #  build-ios:
-  #    name: Build iOS
-  #    runs-on: macos-latest
-  #    needs: verify
-  #    permissions:
-  #      contents: read
-  #    timeout-minutes: 45
-  #    steps:
-  #      - name: Checkout
-  #        uses: actions/checkout@v4
-  #
-  #      - name: Set up Flutter
-  #        uses: subosito/flutter-action@v2
-  #        with:
-  #          flutter-version: ${{ env.FLUTTER_VERSION }}
-  #          cache: true
-  #
-  #      - name: Get dependencies
-  #        run: flutter pub get
-  #
-  #      - name: Generate localization files
-  #        run: flutter gen-l10n
-  #
-  #      - name: Build iOS (no codesign)
-  #        run: flutter build ios --release --no-codesign
-  #
-  #      - name: Create IPA
-  #        run: |
-  #          mkdir -p build/ios/ipa
-  #          cd build/ios/iphoneos
-  #          zip -r ../ipa/Runner.ipa Runner.app
-  #          echo "IPA created:"
-  #          ls -la ../ipa/
-  #
-  #      - name: Upload iOS artifacts
-  #        uses: actions/upload-artifact@v4
-  #        with:
-  #          name: ios-artifacts
-  #          path: build/ios/ipa/*.ipa
-  #          retention-days: 14
-
-  #  build-macos:
-  #    name: Build macOS
-  #    runs-on: macos-latest
-  #    needs: verify
-  #    permissions:
-  #      contents: read
-  #    timeout-minutes: 45
-  #    steps:
-  #      - name: Checkout
-  #        uses: actions/checkout@v4
-  #
-  #      - name: Set up Flutter
-  #        uses: subosito/flutter-action@v2
-  #        with:
-  #          flutter-version: ${{ env.FLUTTER_VERSION }}
-  #          cache: true
-  #
-  #      - name: Get dependencies
-  #        run: flutter pub get
-  #
-  #      - name: Generate localization files
-  #        run: flutter gen-l10n
-  #
-  #      - name: Build macOS
-  #        run: flutter build macos --release
-  #
-  #      - name: Create macOS ZIP
-  #        run: |
-  #          echo "Current directory: $(pwd)"
-  #          echo "Build directory contents:"
-  #          ls -la build/macos/Build/Products/Release/
-  #
-  #          cd build/macos/Build/Products/Release
-  #
-  #          # Find .app directory (handle names with spaces)
-  #          APP_PATH=$(find . -maxdepth 1 -name "*.app" -type d | head -1)
-  #          if [ -z "$APP_PATH" ]; then
-  #            echo "Error: No .app directory found!"
-  #            exit 1
-  #          fi
-  #
-  #          APP_NAME=$(basename "$APP_PATH")
-  #          echo "Found app: '$APP_NAME'"
-  #
-  #          # Create ZIP with proper quoting
-  #          zip -r macos-app.zip "$APP_NAME"
-  #          echo "ZIP created successfully"
-  #
-  #          # Verify ZIP was created
-  #          if [ ! -f "macos-app.zip" ]; then
-  #            echo "Error: ZIP file was not created!"
-  #            exit 1
-  #          fi
-  #
-  #          echo "Moving ZIP to workspace..."
-  #          mv macos-app.zip "$GITHUB_WORKSPACE/"
-  #
-  #          echo "Final check - ZIP in workspace:"
-  #          ls -la "$GITHUB_WORKSPACE/macos-app.zip"
-  #
-  #      - name: Upload macOS artifacts
-  #        uses: actions/upload-artifact@v4
-  #        with:
-  #          name: macos-artifacts
-  #          path: macos-app.zip
-  #          retention-days: 14
+            dist/*.apk
+          retention-days: 30
+          compression-level: 6
 
   build-windows:
     name: Build Windows
     runs-on: windows-latest
-    needs: verify
+    needs: [ setup, verify ]
     permissions:
-      contents: read
+      contents: write
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -228,227 +212,158 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
       - name: Get dependencies
         run: flutter pub get
 
       - name: Generate localization files
         run: flutter gen-l10n
 
-      - name: Build Windows
-        run: flutter build windows --release
+      - name: Install Fastforge
+        run: dart pub global activate fastforge
 
-      - name: Create Windows ZIP
-        shell: pwsh
+      - name: Build Windows with Fastforge
         run: |
-          $src = "build/windows/x64/runner/Release"
-          Write-Output "Source directory contents:"
-          Get-ChildItem -Path $src
-          
-          $zipPath = "$env:GITHUB_WORKSPACE/windows-app.zip"
-          Compress-Archive -Path "$src/*" -DestinationPath $zipPath
-          
-          Write-Output "ZIP created at: $zipPath"
-          if (Test-Path $zipPath) {
-            $zipInfo = Get-Item $zipPath
-            Write-Output "ZIP size: $($zipInfo.Length) bytes"
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $RELEASE_TYPE = "${{ github.event.inputs.release_type }}"
+          } else {
+            $RELEASE_TYPE = "production"
           }
+          
+          fastforge release --name $RELEASE_TYPE --jobs windows-installer
+        env:
+          APP_NAME: ${{ needs.setup.outputs.app_name }}
+          APP_VERSION: ${{ needs.setup.outputs.app_version }}
+          BUILD_NUMBER: ${{ needs.setup.outputs.build_number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
-          path: windows-app.zip
-          retention-days: 14
+          path: |
+            dist/*.exe
+            dist/*.zip
+          retention-days: 30
+          compression-level: 6
 
-  #  build-linux:
-  #    name: Build Linux
-  #    runs-on: ubuntu-latest
-  #    needs: verify
-  #    permissions:
-  #      contents: read
-  #    timeout-minutes: 45
-  #    steps:
-  #      - name: Checkout
-  #        uses: actions/checkout@v4
-  #
-  #      - name: Install Linux dependencies
-  #        run: |
-  #          sudo apt-get update
-  #          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libblkid-dev
-  #
-  #      - name: Set up Flutter
-  #        uses: subosito/flutter-action@v2
-  #        with:
-  #          flutter-version: ${{ env.FLUTTER_VERSION }}
-  #          cache: true
-  #
-  #      - name: Get dependencies
-  #        run: flutter pub get
-  #
-  #      - name: Generate localization files
-  #        run: flutter gen-l10n
-  #
-  #      - name: Build Linux
-  #        run: flutter build linux --release
-  #
-  #      - name: Create Linux ZIP
-  #        run: |
-  #          echo "Current directory: $(pwd)"
-  #          echo "Linux build contents:"
-  #          ls -la build/linux/x64/release/
-  #
-  #          cd build/linux/x64/release
-  #          zip -r linux-app.zip bundle
-  #          mv linux-app.zip "$GITHUB_WORKSPACE/"
-  #
-  #          echo "ZIP moved to workspace:"
-  #          ls -la "$GITHUB_WORKSPACE/linux-app.zip"
-  #
-  #      - name: Upload Linux artifacts
-  #        uses: actions/upload-artifact@v4
-  #        with:
-  #          name: linux-artifacts
-  #          path: linux-app.zip
-  #          retention-days: 14
-
-  release:
-    name: Create Release
+  create-release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-    #needs: [ build-android, build-ios, build-macos, build-windows, build-linux ]
-    needs: [ build-android, build-windows ]
+    needs: [ setup, build-android, build-windows ]
     permissions:
       contents: write
     timeout-minutes: 15
-    if: startsWith(github.ref, 'refs/tags/')
-
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.release_type == 'production'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Get app name from pubspec.yaml
-        id: app_name
-        run: |
-          APP_NAME=$(grep '^name:' pubspec.yaml | cut -d' ' -f2 | tr -d '"' | head -1)
-          if [ -z "$APP_NAME" ]; then
-            APP_NAME=${GITHUB_REPOSITORY##*/}
-          fi
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
-          echo "name=$APP_NAME" >> $GITHUB_OUTPUT
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
 
-      - name: Artifacts structure (DEBUG)
-        run: |
-          echo "=== ARTIFACTS STRUCTURE ==="
-          find artifacts -type f -name "*" | sort
-          echo "=== DETAILED LISTING ==="
-          ls -laR artifacts/
-
       - name: Prepare release assets
         run: |
           mkdir -p dist
-          APP_NAME="${{ steps.app_name.outputs.name }}"
-          VERSION="${{ steps.version.outputs.version }}"
+          APP_NAME="${{ needs.setup.outputs.app_name }}"
+          VERSION="${{ needs.setup.outputs.app_version }}"
           
-          echo "Preparing release for: $APP_NAME v$VERSION"
+          echo "🚀 Preparing release for: $APP_NAME v$VERSION"
           
           # Android APKs
-          if find artifacts/android-artifacts -name "*.apk" -type f | grep -q .; then
-            find artifacts/android-artifacts -name "*.apk" -type f | while read file; do
-              filename=$(basename "$file")
-              cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
-              echo "✓ Copied APK: $filename"
-            done
-          else
-            echo "⚠️ No APK files found"
-          fi
+          find artifacts/android-artifacts -name "*.apk" -type f | while read file; do
+            filename=$(basename "$file")
+            # Rinomina con pattern consistente
+            new_name="${APP_NAME}-${VERSION}-${filename}"
+            cp "$file" "dist/$new_name"
+            echo "✓ Android: $new_name"
+          done
           
-          #          # Android AABs
-          #          if find artifacts/android-artifacts -name "*.aab" -type f | grep -q .; then
-          #            find artifacts/android-artifacts -name "*.aab" -type f | while read file; do
-          #              filename=$(basename "$file")
-          #              cp "$file" "dist/${APP_NAME}-${VERSION}-android-${filename}"
-          #              echo "✓ Copied AAB: $filename"
-          #            done
-          #          else
-          #            echo "⚠️ No AAB files found"
-          #          fi
+          # Windows installer/ZIP
+          find artifacts/windows-artifacts -name "*" -type f | while read file; do
+            filename=$(basename "$file")
+            extension="${filename##*.}"
+            new_name="${APP_NAME}-${VERSION}-windows-installer.$extension"
+            cp "$file" "dist/$new_name"
+            echo "✓ Windows: $new_name"
+          done
           
-          #          # iOS
-          #          if [ -f "artifacts/ios-artifacts/Runner.ipa" ]; then
-          #            cp "artifacts/ios-artifacts/Runner.ipa" "dist/${APP_NAME}-${VERSION}-ios.ipa"
-          #            echo "✓ Copied iOS IPA"
-          #          else
-          #            echo "⚠️ iOS IPA not found"
-          #          fi
-          
-          #          # macOS
-          #          if [ -f "artifacts/macos-artifacts/macos-app.zip" ]; then
-          #            cp "artifacts/macos-artifacts/macos-app.zip" "dist/${APP_NAME}-${VERSION}-macos.zip"
-          #            echo "✓ Copied macOS ZIP"
-          #          else
-          #            echo "⚠️ macOS ZIP not found"
-          #          fi
-          
-          # Windows
-          if [ -f "artifacts/windows-artifacts/windows-app.zip" ]; then
-            cp "artifacts/windows-artifacts/windows-app.zip" "dist/${APP_NAME}-${VERSION}-windows.zip"
-            echo "✓ Copied Windows ZIP"
-          else
-            echo "⚠️ Windows ZIP not found"
-          fi
-          
-          #          # Linux
-          #          if [ -f "artifacts/linux-artifacts/linux-app.zip" ]; then
-          #            cp "artifacts/linux-artifacts/linux-app.zip" "dist/${APP_NAME}-${VERSION}-linux.zip"
-          #            echo "✓ Copied Linux ZIP"
-          #          else
-          #            echo "⚠️ Linux ZIP not found"
-          #          fi
-          
-          echo "=== FINAL RELEASE ASSETS ==="
+          echo "📦 Final release assets:"
           ls -la dist/
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ needs.setup.outputs.app_version }}"
           
-          if [ -z "$(ls -A dist/)" ]; then
-            echo "❌ ERROR: No release assets prepared!"
-            exit 1
+          # Cerca nel CHANGELOG.md se esiste
+          if [ -f "CHANGELOG.md" ]; then
+            CHANGELOG_SECTION=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | head -n -1 | tail -n +2)
+            if [ ! -z "$CHANGELOG_SECTION" ]; then
+              echo "Found changelog section for version $VERSION"
+              echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_OUTPUT
+              echo "$CHANGELOG_SECTION" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "${{ env.APP_NAME }} v${{ env.VERSION }}"
+          name: ${{ needs.setup.outputs.release_name }}
           body: |
-            ## 🚀 Release ${{ env.APP_NAME }} v${{ env.VERSION }}
+            ## 📱 Platforms & Downloads
             
-            **📱 Platforms supported:**
-            - Android (APK<!-- & AAB -->)
-            <!-- - iOS (IPA) -->
-            <!-- - macOS (ZIP) -->
-            - Windows (ZIP)
-            <!-- - Linux (ZIP) -->
+            | Platform | File | Architecture |
+            |----------|------|--------------|
+            | 🤖 Android | `*-universal-release.apk` | Universal (all architectures) |
+            | 🤖 Android | `*-arm64-v8a-release.apk` | ARM64 (recommended for most devices) |
+            | 🤖 Android | `*-armeabi-v7a-release.apk` | ARMv7 (older devices) |
+            | 🤖 Android | `*-x86_64-release.apk` | x86_64 (emulators, Chromebooks) |
+            | 💻 Windows | `*-windows-installer.exe` | Windows Installer (x64) |
             
-            **📋 Changes:**
-            - See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+            ## 📋 What's Changed
+            ${{ steps.release_notes.outputs.CHANGELOG_CONTENT || 'See commit history for detailed changes.' }}
             
-            **🔗 Commit:** `${{ github.sha }}`
-            **📅 Date:** ${{ github.event.head_commit.timestamp }}
+            ## 🛠 Build Info
+            - **Version:** `${{ needs.setup.outputs.app_version }}`
+            - **Build:** `${{ needs.setup.outputs.build_number }}`
+            - **Flutter:** `${{ env.FLUTTER_VERSION }}`
+            - **Built:** `${{ github.event.head_commit.timestamp }}`
+            
+            ## 📥 Installation
+            
+            **Android:** Download the appropriate APK for your device architecture. If unsure, use the universal APK.
+            
+            **Windows:** Download and run the `.exe` installer. Windows may show a security warning - this is normal for unsigned installers.
             
             ---
-            _Generated automatically by GitHub Actions_
+            _🤖 Automated release built with GitHub Actions and Fastforge_
           files: ./dist/*
+          generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.setup.outputs.is_prerelease == 'true' }}
+          make_latest: ${{ needs.setup.outputs.is_prerelease == 'false' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+#  cleanup:
+#    name: Cleanup
+#    runs-on: ubuntu-latest
+#    needs: [ create-release ]
+#    if: always()
+#    steps:
+#      - name: Delete old releases (keep last 10)
+#        uses: dev-drprasad/delete-older-releases@v0.3.2
+#        with:
+#          keep_latest: 10
+#          delete_tag_pattern: v
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
