@@ -183,7 +183,13 @@ jobs:
             RELEASE_TYPE="production"
           fi
           
-          fastforge release --name $RELEASE_TYPE --jobs android-apk-universal, android-apk-split
+          echo "🔎 Env vars Fastforge:"
+          echo "  APP_NAME=$APP_NAME"
+          echo "  APP_VERSION=$APP_VERSION"
+          echo "  BUILD_NUMBER=$BUILD_NUMBER"
+          echo "  RELEASE_TYPE=$RELEASE_TYPE"
+          
+          fastforge release --name $RELEASE_TYPE --jobs android-apk-universal,android-apk-split
         env:
           APP_NAME: ${{ needs.setup.outputs.app_name }}
           APP_VERSION: ${{ needs.setup.outputs.app_version }}
