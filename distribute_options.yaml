@@ -74,16 +74,16 @@ releases:
             dart-define:
               ENVIRONMENT: beta
 
-      - name: android-apk-split-beta
-        package:
-          platform: android
-          target: apk
-          build_args:
-            build-name: ${APP_VERSION}-beta
-            build-number: ${BUILD_NUMBER}
-            split-per-abi: true
-            dart-define:
-              ENVIRONMENT: beta
+      #      - name: android-apk-split-beta
+      #        package:
+      #          platform: android
+      #          target: apk
+      #          build_args:
+      #            build-name: ${APP_VERSION}-beta
+      #            build-number: ${BUILD_NUMBER}
+      #            split-per-abi: true
+      #            dart-define:
+      #              ENVIRONMENT: beta
 
       # Windows installer beta
       - name: windows-installer-beta
