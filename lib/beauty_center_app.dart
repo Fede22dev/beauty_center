@@ -1,48 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
-import 'core/app_routes.dart';
 import 'core/constants/app_constants.dart';
+import 'core/providers/app_providers.dart';
+import 'core/router/app_routes.dart';
 import 'core/theme/app_theme.dart';
-import 'generated/l10n.dart';
 import 'home/presentation/desktop/pages/home_page_desktop.dart';
 import 'home/presentation/mobile/pages/home_page_mobile.dart';
+import 'l10n/app_localizations.dart';
 
-class BeautyCenterApp extends StatelessWidget {
+class BeautyCenterApp extends ConsumerWidget {
   const BeautyCenterApp({super.key});
 
-  GoRouter _buildRouter() {
-    return GoRouter(
-      initialLocation: kDefaultRoute.path,
-      redirect: (context, state) {
-        final segments = state.uri.pathSegments;
-        if (segments.isEmpty) return kDefaultRoute.path;
-        if (!isValidTabSegment(segments.first)) return kDefaultRoute.path;
-        return null;
-      },
-      routes: [
-        GoRoute(
-          path: '/:tab(appointments|clients|treatments|statistics|settings)',
-          pageBuilder: (context, state) {
-            final initial =
-                state.pathParameters['tab'] ?? kDefaultRoute.segment;
-            return MaterialPage(
-              key: ValueKey('home'),
-              child: kTargetOsIsDesktop
-                  ? HomePageDesktop(initialSegment: initial)
-                  : HomePageMobile(initialSegment: initial),
-            );
-          },
-        ),
-      ],
-    );
-  }
+  GoRouter _buildRouter() => GoRouter(
+    initialLocation: kDefaultRoute.path,
+    redirect: (final context, final state) {
+      final segments = state.uri.pathSegments;
+      if (segments.isEmpty) return kDefaultRoute.path;
+      if (!isValidTabSegment(segments.first)) return kDefaultRoute.path;
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: '/:tab(appointments|clients|treatments|statistics|settings)',
+        pageBuilder: (final context, final state) {
+          final initial = state.pathParameters['tab'] ?? kDefaultRoute.segment;
+          return MaterialPage(
+            key: const ValueKey('home'),
+            child: kTargetOsIsDesktop
+                ? HomePageDesktop(initialSegment: initial)
+                : HomePageMobile(initialSegment: initial),
+          );
+        },
+      ),
+    ],
+  );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context, final WidgetRef ref) {
     final router = _buildRouter();
 
     return ScreenUtilInit(
@@ -55,19 +53,16 @@ class BeautyCenterApp extends StatelessWidget {
           DeviceOrientation.portraitDown,
         ]);
 
+        final locale = ref.watch(appLocaleProvider);
+
         return MaterialApp.router(
           title: 'Beauty Center',
           debugShowCheckedModeBanner: false,
-          localizationsDelegates: const [
-            S.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: S.delegate.supportedLocales,
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.system,
           routerConfig: router,
         );
       },

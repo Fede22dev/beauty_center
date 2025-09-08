@@ -1,15 +1,15 @@
-import 'package:beauty_center/home/state/app_route_ui.dart';
+import 'package:beauty_center/home/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sidebarx/sidebarx.dart';
 
-import '../../../../core/app_routes.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/widgets/lazy_keep_alive_stack.dart';
 import '../../../../core/widgets/offline_banner.dart';
-import '../../../state/home_controller.dart';
+import '../../../providers/home_provider.dart';
 import '../widgets/navigations/side_nav.dart';
 
 class HomePageDesktop extends ConsumerStatefulWidget {
@@ -67,7 +67,7 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
   void _onRouteChanged() {
     // Sync index from current location (supports hash strategy).
     final info = _router!.routeInformationProvider.value;
-    final String location = info.uri.toString();
+    final location = info.uri.toString();
     final uri = Uri.parse(location);
     final segment = uri.pathSegments.isNotEmpty
         ? uri.pathSegments.first
@@ -82,8 +82,9 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
 
   @override
   void dispose() {
-    _railController.removeListener(_onRailSelectionChanged);
-    _railController.dispose();
+    _railController
+      ..removeListener(_onRailSelectionChanged)
+      ..dispose();
 
     if (_router != null && _routerListener != null) {
       _router!.routerDelegate.removeListener(_routerListener!);
@@ -97,7 +98,7 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
   }
 
   // Unified setter to keep rail, page, router, and provider in sync.
-  void _setIndex(int newIndex) {
+  void _setIndex(final int newIndex) {
     final currIndex = ref.read(homeTabProvider.notifier).index;
     if (newIndex == currIndex) return;
 
@@ -106,21 +107,20 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
     // Route change (avoid loops by comparing current route).
     final targetPath = AppRoute.values[newIndex].path;
     final info = _router?.routeInformationProvider.value;
-    final String currentLocation = info?.uri.toString() ?? kDefaultRoute.path;
+    final currentLocation = info?.uri.toString() ?? kDefaultRoute.path;
     if (mounted && currentLocation != targetPath) {
       context.go(targetPath);
     }
   }
 
-  Widget _buildPage(BuildContext context, int index) {
-    return KeyedSubtree(
-      key: ValueKey('page_$index'),
-      child: AppRoute.values[index].buildPage,
-    );
-  }
+  Widget _buildPage(final BuildContext context, final int index) =>
+      KeyedSubtree(
+        key: ValueKey('page_$index'),
+        child: AppRoute.values[index].buildPage,
+      );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     // WIDE: Sidebar + IndexedStack (state preserved).
@@ -132,23 +132,21 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
             SafeArea(child: SideNav(controller: _railController)),
             AnimatedBuilder(
               animation: _railController,
-              builder: (context, _) {
-                return AnimatedPadding(
-                  duration: kDefaultAppAnimationsDuration,
-                  padding: _railController.extended
-                      ? EdgeInsets.symmetric(vertical: 4.h)
-                      : EdgeInsets.symmetric(vertical: 20.h),
-                  child: VerticalDivider(
-                    width: 1.w,
-                    color: colorScheme.outlineVariant,
-                  ),
-                );
-              },
+              builder: (final context, _) => AnimatedPadding(
+                duration: kDefaultAppAnimationsDuration,
+                padding: _railController.extended
+                    ? EdgeInsets.symmetric(vertical: 4.h)
+                    : EdgeInsets.symmetric(vertical: 20.h),
+                child: VerticalDivider(
+                  width: 1.w,
+                  color: colorScheme.outlineVariant,
+                ),
+              ),
             ),
             Expanded(
               child: SafeArea(
                 child: Consumer(
-                  builder: (context, ref, _) {
+                  builder: (final context, final ref, _) {
                     final currentIndex = ref.watch(homeTabProvider).index;
                     return LazyKeepAliveStack(
                       index: currentIndex,

@@ -16,5 +16,5 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
   await ConnectivityRepository.instance.init();
-  runApp(ProviderScope(child: const BeautyCenterApp()));
+  runApp(const ProviderScope(child: BeautyCenterApp()));
 }

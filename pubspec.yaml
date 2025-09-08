@@ -1,38 +1,45 @@
 name: beauty_center # To change the visualized name of app use, package rename command: rename setAppName --targets ios,android,macos,windows,linux --value "Beauty Center"
 description: "Management app for beauty centers."
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-version: 0.1.0
+publish_to: 'none'
+version: 0.1.0+1
 
 environment:
-  sdk: ^3.8.1
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: ">=3.24.0"
 
 dependencies:
   flutter:
     sdk: flutter
 
+  # Localizations
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
+  # State management and routing
   go_router: ^16.2.1
   flutter_riverpod: ^2.6.1
   equatable: ^2.0.7
 
+  # UI and theming
   flex_color_scheme: ^8.3.0
   flutter_screenutil: ^5.9.3
+  material_symbols_icons: ^4.2872.0
 
-  material_symbols_icons: ^4.2867.0
-  connectivity_plus: ^6.1.5
+  # Navigation
   sidebarx: ^0.17.2
   google_nav_bar: ^5.0.7
 
-  intl: ^0.20.2
-  flutter_localizations:
-    sdk: flutter
+  # Utils
+  connectivity_plus: ^6.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  riverpod_lint: ^2.6.5
 
 flutter:
   uses-material-design: true
-flutter_intl:
-  enabled: true
+  generate: true

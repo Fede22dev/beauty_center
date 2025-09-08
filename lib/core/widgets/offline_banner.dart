@@ -1,56 +1,49 @@
 import 'dart:async';
 
+import 'package:beauty_center/core/extensions/riverpod_l10n_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../generated/l10n.dart';
 import '../connectivity/connectivity_repository.dart';
 import '../constants/app_constants.dart';
 
 class OfflineScaffoldOverlay extends StatelessWidget {
-  const OfflineScaffoldOverlay({super.key, required this.child});
+  const OfflineScaffoldOverlay({required this.child, super.key});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: ConnectivityRepository.instance.isOfflineListenable,
-      builder: (context, offline, child) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            this.child,
-            Positioned(
-              top: 0,
-              left: 0.2.sw,
-              right: 0.2.sw,
-              child: OfflineBanner(isOffline: false),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(final BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: ConnectivityRepository.instance.isOfflineListenable,
+    builder: (final context, final offline, final child) => Stack(
+      fit: StackFit.expand,
+      children: [
+        this.child,
+        Positioned(
+          top: 0,
+          left: 0.2.sw,
+          right: 0.2.sw,
+          child: const OfflineBanner(isOffline: false),
+        ),
+      ],
+    ),
+  );
 }
 
 class InlineConnectivityBanner extends StatelessWidget {
   const InlineConnectivityBanner({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: ConnectivityRepository.instance.isOfflineListenable,
-      builder: (context, offline, child) {
-        return OfflineBanner(isOffline: offline);
-      },
-    );
-  }
+  Widget build(final BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: ConnectivityRepository.instance.isOfflineListenable,
+    builder: (final context, final offline, final child) =>
+        OfflineBanner(isOffline: offline),
+  );
 }
 
 class OfflineBanner extends StatefulWidget {
-  const OfflineBanner({super.key, required this.isOffline});
+  const OfflineBanner({required this.isOffline, super.key});
 
   final bool isOffline;
 
@@ -63,7 +56,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
   bool _firstBuildDone = false;
 
   @override
-  void didUpdateWidget(covariant OfflineBanner oldWidget) {
+  void didUpdateWidget(covariant final OfflineBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (_firstBuildDone) {
@@ -79,7 +72,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_showOnlineBanner) {
@@ -93,7 +86,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
         ),
         child: Center(
           child: Text(
-            S.of(context).onlineBanner,
+            context.l10n.onlineBanner,
             style: TextStyle(
               color:
                   ThemeData.estimateBrightnessForColor(Colors.green) ==
@@ -131,7 +124,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
                   ),
                   SizedBox(width: 8.w),
                   Text(
-                    S.of(context).offlineBanner,
+                    context.l10n.offlineBanner,
                     style: TextStyle(
                       color: colorScheme.onErrorContainer,
                       fontSize: (kTargetOsIsDesktop ? 6 : 13).sp,

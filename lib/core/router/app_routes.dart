@@ -9,7 +9,7 @@ extension AppRouteX on AppRoute {
   String get path => '/$segment';
 }
 
-bool isValidTabSegment(String? segment) {
+bool isValidTabSegment(final String? segment) {
   if (segment == null) return false;
   for (final route in AppRoute.values) {
     if (route.segment == segment) return true;
@@ -18,7 +18,7 @@ bool isValidTabSegment(String? segment) {
   return false;
 }
 
-AppRoute appRouteFromSegmentOrDefault(String? segment) {
+AppRoute appRouteFromSegmentOrDefault(final String? segment) {
   if (segment == null) return kDefaultRoute;
   for (final route in AppRoute.values) {
     if (route.segment == segment) return route;

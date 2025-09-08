@@ -1,13 +1,13 @@
-import 'package:beauty_center/home/state/app_route_ui.dart';
+import 'package:beauty_center/home/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/app_routes.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/widgets/offline_banner.dart';
-import '../../../state/home_controller.dart';
+import '../../../providers/home_provider.dart';
 import '../widgets/navigations/bottom_nav.dart';
 
 class HomePageMobile extends ConsumerStatefulWidget {
@@ -20,7 +20,7 @@ class HomePageMobile extends ConsumerStatefulWidget {
 }
 
 class _HomePageMobileState extends ConsumerState<HomePageMobile> {
-  // Cache pages to preserve state and avoid rebuilds bottom nav (compact layout).
+  // Cache pages to preserve state and avoid rebuilds nav (compact layout)
   late final List<Widget?> _pageCache;
 
   // Keys to auto-scroll the selected bottom tab into view (compact layout).
@@ -36,11 +36,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   void initState() {
     super.initState();
 
-    _pageCache = List<Widget?>.filled(
-      AppRoute.values.length,
-      null,
-      growable: false,
-    );
+    _pageCache = List<Widget?>.filled(AppRoute.values.length, null);
 
     _tabKeys = List<GlobalKey>.generate(
       AppRoute.values.length,
@@ -93,7 +89,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   void _onRouteChanged() {
     // Sync index from current location (supports hash strategy).
     final info = _router!.routeInformationProvider.value;
-    final String location = info.uri.toString();
+    final location = info.uri.toString();
     final uri = Uri.parse(location);
     final segment = uri.pathSegments.isNotEmpty
         ? uri.pathSegments.first
@@ -106,7 +102,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   }
 
   // Unified setter to keep rail, page, router, and provider in sync.
-  void _setIndex(int newIndex) {
+  void _setIndex(final int newIndex) {
     final currIndex = ref.read(homeTabProvider.notifier).index;
     if (newIndex == currIndex) return;
 
@@ -115,7 +111,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     // Route change (avoid loops by comparing current route).
     final targetPath = AppRoute.values[newIndex].path;
     final info = _router?.routeInformationProvider.value;
-    final String currentLocation = info?.uri.toString() ?? kDefaultRoute.path;
+    final currentLocation = info?.uri.toString() ?? kDefaultRoute.path;
     if (mounted && currentLocation != targetPath) {
       context.go(targetPath);
     }
@@ -124,17 +120,17 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     _scrollActiveTabIntoView();
   }
 
-  void _onBottomNavTabChanged(int newIndex) {
+  void _onBottomNavTabChanged(final int newIndex) {
     // Jump to page call -> _onPageChanged and propagates to _setIndex.
     _pageController.jumpToPage(newIndex);
   }
 
-  void _onPageChanged(int newIndex) {
+  void _onPageChanged(final int newIndex) {
     _setIndex(newIndex);
   }
 
   void _scrollActiveTabIntoView({
-    Duration duration = kDefaultAppAnimationsDuration,
+    final Duration duration = kDefaultAppAnimationsDuration,
   }) {
     final context =
         _tabKeys[ref.read(homeTabProvider.notifier).index].currentContext;
@@ -147,54 +143,53 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     );
   }
 
-  Widget _buildCachedPage(int index) {
+  Widget _buildCachedPage(final int index) {
     // Lazy loading con cache
     _pageCache[index] ??= AppRoute.values[index].buildPage;
     return _pageCache[index]!;
   }
 
-  PreferredSizeWidget _buildAppBar(ColorScheme colorScheme) {
-    return PreferredSize(
-      preferredSize: Size.fromHeight(kToolbarHeight.h),
-      child: AnimatedContainer(
-        duration: kDefaultAppAnimationsDuration,
-        curve: Curves.easeInOutQuint,
-        decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            AppRoute.values[ref.read(homeTabProvider.notifier).index].color
-                .withValues(alpha: 0.35),
-            colorScheme.surfaceContainer,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppRoute
-                  .values[ref.read(homeTabProvider.notifier).index]
-                  .color
-                  .withValues(alpha: 0.1),
-              blurRadius: 8.r,
-              offset: Offset(0, 2.h),
+  PreferredSizeWidget _buildAppBar(final ColorScheme colorScheme) =>
+      PreferredSize(
+        preferredSize: Size.fromHeight(kToolbarHeight.h),
+        child: AnimatedContainer(
+          duration: kDefaultAppAnimationsDuration,
+          curve: Curves.easeInOutQuint,
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(
+              AppRoute.values[ref.read(homeTabProvider.notifier).index].color
+                  .withValues(alpha: 0.35),
+              colorScheme.surfaceContainer,
             ),
-          ],
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Text(
-              'Beauty Center',
-              style: TextStyle(
-                color: colorScheme.onSurface,
-                fontSize: 18.sp,
-                fontWeight: FontWeight.bold,
+            boxShadow: [
+              BoxShadow(
+                color: AppRoute
+                    .values[ref.read(homeTabProvider.notifier).index]
+                    .color
+                    .withValues(alpha: 0.1),
+                blurRadius: 8.r,
+                offset: Offset(0, 2.h),
+              ),
+            ],
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: Text(
+                'Beauty Center',
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     // COMPACT: AppBar + Inline offline banner + PageView (25% screen swipe left/right) + Bottom Navigation.
@@ -203,45 +198,43 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
       appBar: _buildAppBar(colorScheme),
       body: Column(
         children: [
-          InlineConnectivityBanner(),
+          const InlineConnectivityBanner(),
           Expanded(
             child: SafeArea(
               top: false,
               bottom: false,
               child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Stack(
-                    children: [
-                      PageView.builder(
-                        controller: _pageController,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: AppRoute.values.length,
-                        onPageChanged: _onPageChanged,
-                        itemBuilder: (context, index) =>
-                            _buildCachedPage(index),
+                builder: (final context, final constraints) => Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _pageController,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: AppRoute.values.length,
+                      onPageChanged: _onPageChanged,
+                      itemBuilder: (final context, final index) =>
+                          _buildCachedPage(index),
+                    ),
+                    Positioned(
+                      left: 0.25.sw,
+                      right: 0.25.sw,
+                      top: 0,
+                      bottom: 0,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onHorizontalDragStart: (_) {},
+                        onHorizontalDragUpdate: (_) {},
+                        onHorizontalDragEnd: (_) {},
                       ),
-                      Positioned(
-                        left: 0.25.sw,
-                        right: 0.25.sw,
-                        top: 0,
-                        bottom: 0,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onHorizontalDragStart: (_) {},
-                          onHorizontalDragUpdate: (_) {},
-                          onHorizontalDragEnd: (_) {},
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
       bottomNavigationBar: Consumer(
-        builder: (context, ref, _) {
+        builder: (final context, final ref, _) {
           final selectedIndex = ref.watch(homeTabProvider).index;
           return SafeArea(
             child: BottomNav(

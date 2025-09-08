@@ -1,18 +1,18 @@
+import 'package:beauty_center/home/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:sidebarx/sidebarx.dart';
 
-import '../../../../../core/app_routes.dart';
 import '../../../../../core/constants/app_constants.dart';
-import '../../../../state/app_route_ui.dart';
+import '../../../../../core/router/app_routes.dart';
 
 class SideNav extends StatelessWidget {
-  const SideNav({super.key, required this.controller});
+  const SideNav({required this.controller, super.key});
 
   final SidebarXController controller;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return SidebarX(
@@ -64,7 +64,7 @@ class SideNav extends StatelessWidget {
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 20.r,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -91,7 +91,7 @@ class SideNav extends StatelessWidget {
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 20.r,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -117,7 +117,7 @@ class SideNav extends StatelessWidget {
         for (final tab in AppRoute.values)
           SidebarXItem(
             label: tab.label(context),
-            iconBuilder: (selected, hovered) => Center(
+            iconBuilder: (final selected, final hovered) => Center(
               child: Icon(
                 tab.icon,
                 size: 12.sp,

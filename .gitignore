@@ -45,4 +45,4 @@ app.*.map.json
 /android/app/release
 
 # Localization l10n generated files
-lib/generated/
+lib/l10n/app_localizations*.dart

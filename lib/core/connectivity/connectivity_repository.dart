@@ -17,12 +17,14 @@ class ConnectivityRepository {
   Future<void> init() async {
     final initial = await _connectivity.checkConnectivity();
     _isOffline.value = !initial.any(
-      (r) => r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
+      (final r) =>
+          r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
     );
 
-    _connectivity.onConnectivityChanged.listen((result) {
+    _connectivity.onConnectivityChanged.listen((final result) {
       _isOffline.value = !result.any(
-        (r) => r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
+        (final r) =>
+            r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
       );
     });
   }

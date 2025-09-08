@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FLUTTER_VERSION: '3.35.2'
+  FLUTTER_VERSION: '3.35.3'
   JAVA_VERSION: '17'
 
 jobs:
@@ -86,20 +86,13 @@ jobs:
         run: flutter pub get
 
       - name: Generate localization files
-        run: flutter pub run intl_utils:generate
+        run: flutter gen-l10n
 
       - name: Build APK
         run: flutter build apk --release --split-per-abi
 
       #      - name: Build App Bundle
       #        run: flutter build appbundle --release
-
-      - name: List build outputs (debug)
-        run: |
-          echo "APK files:"
-          find build/app/outputs/flutter-apk -name "*.apk" -type f || echo "No APK files found"
-      #          echo "AAB files:"
-      #          find build/app/outputs/bundle -name "*.aab" -type f || echo "No AAB files found"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -131,7 +124,7 @@ jobs:
   #        run: flutter pub get
   #
   #      - name: Generate localization files
-  #        run: flutter pub run intl_utils:generate
+  #        run: flutter gen-l10n
   #
   #      - name: Build iOS (no codesign)
   #        run: flutter build ios --release --no-codesign
@@ -172,7 +165,7 @@ jobs:
   #        run: flutter pub get
   #
   #      - name: Generate localization files
-  #        run: flutter pub run intl_utils:generate
+  #        run: flutter gen-l10n
   #
   #      - name: Build macOS
   #        run: flutter build macos --release
@@ -239,7 +232,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate localization files
-        run: flutter pub run intl_utils:generate
+        run: flutter gen-l10n
 
       - name: Build Windows
         run: flutter build windows --release
@@ -293,7 +286,7 @@ jobs:
   #        run: flutter pub get
   #
   #      - name: Generate localization files
-  #        run: flutter pub run intl_utils:generate
+  #        run: flutter gen-l10n
   #
   #      - name: Build Linux
   #        run: flutter build linux --release
@@ -356,7 +349,7 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Debug artifacts structure
+      - name: Artifacts structure (DEBUG)
         run: |
           echo "=== ARTIFACTS STRUCTURE ==="
           find artifacts -type f -name "*" | sort

@@ -6,10 +6,10 @@ import 'package:flutter/widgets.dart';
 /// - Uses Offstage + TickerMode so only the selected one lays out/paints/animates.
 class LazyKeepAliveStack extends StatefulWidget {
   const LazyKeepAliveStack({
-    super.key,
     required this.index,
     required this.itemCount,
     required this.itemBuilder,
+    super.key,
   });
 
   final int index;
@@ -26,18 +26,14 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
   @override
   void initState() {
     super.initState();
-    _pageCache = List<Widget?>.filled(widget.itemCount, null, growable: false);
+    _pageCache = List<Widget?>.filled(widget.itemCount, null);
   }
 
   @override
-  void didUpdateWidget(covariant LazyKeepAliveStack oldWidget) {
+  void didUpdateWidget(covariant final LazyKeepAliveStack oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.itemCount != oldWidget.itemCount) {
-      final newCache = List<Widget?>.filled(
-        widget.itemCount,
-        null,
-        growable: false,
-      );
+      final newCache = List<Widget?>.filled(widget.itemCount, null);
       final minLen = newCache.length < _pageCache.length
           ? newCache.length
           : _pageCache.length;
@@ -50,7 +46,7 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
     }
   }
 
-  Widget _buildAndCacheItem(int index) {
+  Widget _buildAndCacheItem(final int index) {
     if (_pageCache[index] == null) {
       _pageCache[index] = widget.itemBuilder(context, index);
     }
@@ -59,12 +55,12 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final children = List<Widget>.generate(widget.itemCount, (index) {
+  Widget build(final BuildContext context) {
+    final children = List<Widget>.generate(widget.itemCount, (final index) {
       if (index == widget.index) {
         // Build on first selection (lazy).
         final child = _buildAndCacheItem(index);
-        
+
         return Offstage(
           offstage: false,
           child: TickerMode(
@@ -79,7 +75,6 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
         }
 
         return Offstage(
-          offstage: true,
           child: TickerMode(
             enabled: false,
             child: KeyedSubtree(
