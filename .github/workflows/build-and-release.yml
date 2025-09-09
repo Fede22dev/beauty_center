@@ -32,7 +32,6 @@ jobs:
     outputs:
       app_name: ${{ steps.app_info.outputs.app_name }}
       app_version: ${{ steps.app_info.outputs.app_version }}
-      build_number: ${{ steps.app_info.outputs.build_number }}
       release_name: ${{ steps.app_info.outputs.release_name }}
       is_prerelease: ${{ steps.app_info.outputs.is_prerelease }}
     steps:
@@ -54,10 +53,6 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
             APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1 | tr -d '"' | head -1)
-            BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f2 | tr -d '"' | head -1)
-            if [ -z "$BUILD_NUMBER" ]; then
-              BUILD_NUMBER=$(git rev-list --count HEAD)
-            fi
             IS_PRERELEASE="true"
             if [ "$RELEASE_TYPE" = "production" ]; then
               IS_PRERELEASE="false"
@@ -66,13 +61,11 @@ jobs:
           else
             RELEASE_TYPE="production"
             APP_VERSION=${GITHUB_REF#refs/tags/v}
-            BUILD_NUMBER=$(git rev-list --count HEAD)
             IS_PRERELEASE="false"
             RELEASE_NAME="$APP_NAME v$APP_VERSION"
           fi
           
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
           echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
           
@@ -80,7 +73,6 @@ jobs:
           echo "🚀 Release Info:"
           echo "  App Name: $APP_NAME"
           echo "  Version: $APP_VERSION"
-          echo "  Build Number: $BUILD_NUMBER"
           echo "  Release Type: $RELEASE_TYPE"
           echo "  Is Prerelease: $IS_PRERELEASE"
 
@@ -152,17 +144,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache Gradle & Android SDK
+      # Cache Android SDK
+      - name: Cache Android SDK
         uses: actions/cache@v3
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.android/build-cache
-            /usr/local/lib/android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ hashFiles('**/build.gradle*') }}
+          path: ~/.android/sdk
+          key: android-sdk-${{ runner.os }}-v1
           restore-keys: |
-            ${{ runner.os }}-android-sdk-
+            android-sdk-${{ runner.os }}-
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -249,13 +238,24 @@ jobs:
           Write-Host "  RELEASE_TYPE: $RELEASE_TYPE"
           Write-Host "  APP_NAME: $env:APP_NAME"
           Write-Host "  APP_VERSION: $env:APP_VERSION"
-          Write-Host "  BUILD_NUMBER: $env:BUILD_NUMBER"
+          
+          # Genera make_config.yaml dinamicamente
+          $exeConfig = @"
+          exe:
+            installer_name: "${env:APP_NAME}_Setup_v${env:APP_VERSION}-$RELEASE_TYPE"
+            include_redistributables: true
+            install_dir_name: "${env:APP_NAME}"
+            create_start_menu_entry: true
+            create_desktop_shortcut: true
+          "@
+          
+          New-Item -ItemType Directory -Force -Path windows\packaging\exe
+          $exeConfig | Out-File -Encoding utf8 windows\packaging\exe\make_config.yaml
           
           fastforge release --name $RELEASE_TYPE --jobs windows-installer
         env:
           APP_NAME: ${{ needs.setup.outputs.app_name }}
           APP_VERSION: ${{ needs.setup.outputs.app_version }}
-          BUILD_NUMBER: ${{ needs.setup.outputs.build_number }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -337,7 +337,6 @@ jobs:
             
             ## 🛠 Build Info
             - **Version:** `${{ needs.setup.outputs.app_version }}`
-            - **Build:** `${{ needs.setup.outputs.build_number }}`
             - **Flutter:** `${{ env.FLUTTER_VERSION }}`
             - **Built:** `${{ github.event.head_commit.timestamp }}`
             
