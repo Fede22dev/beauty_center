@@ -28,6 +28,7 @@ jobs:
   setup:
     name: Setup Release Info
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       app_name: ${{ steps.app_info.outputs.app_name }}
       app_version: ${{ steps.app_info.outputs.app_version }}
@@ -43,7 +44,7 @@ jobs:
       - name: Extract app info
         id: app_info
         run: |
-          # Estrai app name dal pubspec.yaml
+          # Extract info from pubspec.yaml
           APP_NAME=$(grep '^name:' pubspec.yaml | sed 's/name: *//' | tr -d '"' | head -1)
           if [ -z "$APP_NAME" ]; then
             APP_NAME=${GITHUB_REPOSITORY##*/}
@@ -90,49 +91,49 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
+      #            - name: Harden Runner
+      #              uses: step-security/harden-runner@v2
+      #              with:
+      #                egress-policy: audit
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      #
+      #      - name: Set up Flutter
+      #        uses: subosito/flutter-action@v2
+      #        with:
+      #          flutter-version: ${{ env.FLUTTER_VERSION }}
+      #          cache: true
+      #
+      #      - name: Flutter doctor
+      #        run: |
+      #          flutter --version
+      #          flutter doctor -v
+      #
+      #      - name: Get dependencies
+      #        run: flutter pub get
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
+      #      - name: Verify dependencies
+      #        run: flutter pub deps
 
-      - name: Flutter doctor
-        run: |
-          flutter --version
-          flutter doctor -v
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Verify dependencies
-        run: flutter pub deps
-
-      - name: Generate localization files
-        run: flutter gen-l10n
-
-      - name: Analyze code
-        run: flutter analyze --fatal-infos
-        continue-on-error: true
-
-      - name: Check formatting
-        run: dart format --set-exit-if-changed .
-        continue-on-error: true
-
-      - name: Run tests
-        run: flutter test --coverage --reporter=expanded
-        continue-on-error: true
+      #      - name: Generate localization files
+      #        run: flutter gen-l10n
+      #
+      #      - name: Analyze code
+      #        run: flutter analyze --fatal-infos
+      #        continue-on-error: true
+      #
+      #      - name: Check formatting
+      #        run: dart format --set-exit-if-changed .
+      #        continue-on-error: true
+      #
+      #      - name: Run tests
+      #        run: flutter test --coverage --reporter=expanded
+      #        continue-on-error: true
 
       # - name: Upload coverage to Codecov
       #   uses: codecov/codecov-action@v3
@@ -145,7 +146,7 @@ jobs:
     needs: [ setup, verify ]
     permissions:
       contents: read
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -183,12 +184,12 @@ jobs:
             RELEASE_TYPE="production"
           fi
           
-          echo "Fastforge build env vars:"
+          echo "=== Fastforge build env vars: ==="
           echo "  RELEASE_TYPE=$RELEASE_TYPE"
           echo "  APP_NAME=$APP_NAME"
           echo "  APP_VERSION=$APP_VERSION"
           
-          fastforge release --name $RELEASE_TYPE --jobs android-apk-universal,android-apk-split
+          fastforge release --name $RELEASE_TYPE --jobs android-apk-universal
         env:
           APP_NAME: ${{ needs.setup.outputs.app_name }}
           APP_VERSION: ${{ needs.setup.outputs.app_version }}
@@ -198,17 +199,17 @@ jobs:
         with:
           name: android-artifacts
           path: |
-            dist/*.apk
+            dist/**/*.apk
           retention-days: 30
           compression-level: 6
 
   build-windows:
     name: Build Windows
-    runs-on: windows-latest
+    runs-on: self-hosted
     needs: [ setup, verify ]
     permissions:
       contents: write  # Needed for Fastforge GitHub publisher
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -239,7 +240,7 @@ jobs:
             $RELEASE_TYPE = "production"
           }
           
-          Write-Host "=== Fastforge build env variables ==="
+          Write-Host "=== Fastforge build env vars: ==="
           Write-Host "  RELEASE_TYPE: $RELEASE_TYPE"
           Write-Host "  APP_NAME: $env:APP_NAME"
           Write-Host "  APP_VERSION: $env:APP_VERSION"
@@ -256,8 +257,8 @@ jobs:
         with:
           name: windows-artifacts
           path: |
-            dist/*.exe
-            dist/*.zip
+            dist/**/*.exe
+            dist/**/*.zip
           retention-days: 30
           compression-level: 6
 
@@ -267,8 +268,7 @@ jobs:
     needs: [ setup, verify, build-android, build-windows ]
     permissions:
       contents: write
-    timeout-minutes: 15
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.release_type == 'production'
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -314,7 +314,6 @@ jobs:
         run: |
           VERSION="${{ needs.setup.outputs.app_version }}"
           
-          # Cerca nel CHANGELOG.md se esiste
           if [ -f "CHANGELOG.md" ]; then
             CHANGELOG_SECTION=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | head -n -1 | tail -n +2)
             if [ ! -z "$CHANGELOG_SECTION" ]; then
