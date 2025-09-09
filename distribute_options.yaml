@@ -21,16 +21,6 @@ releases:
             dart-define:
               ENVIRONMENT: production
 
-      - name: android-apk-split
-        package:
-          platform: android
-          target: apk
-          build_args:
-            build-name: $APP_VERSION
-            split-per-abi: true
-            dart-define:
-              ENVIRONMENT: production
-
       # Windows installer
       - name: windows-installer
         package:
@@ -67,16 +57,6 @@ releases:
           target: apk
           build_args:
             build-name: $APP_VERSION
-            dart-define:
-              ENVIRONMENT: beta
-
-      - name: android-apk-split
-        package:
-          platform: android
-          target: apk
-          build_args:
-            build-name: $APP_VERSION
-            split-per-abi: true
             dart-define:
               ENVIRONMENT: beta
 

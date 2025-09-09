@@ -147,7 +147,7 @@ jobs:
     needs: [ setup ]
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -210,6 +210,7 @@ jobs:
             dist/**/*.apk
           retention-days: 1
           compression-level: 6
+          if-no-files-found: error
 
   build-windows:
     name: Build Windows
@@ -218,7 +219,7 @@ jobs:
     needs: [ setup ]
     permissions:
       contents: write  # Needed for Fastforge GitHub publisher
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -265,6 +266,7 @@ jobs:
             dist/**/*.zip
           retention-days: 1
           compression-level: 6
+          if-no-files-found: error
 
   create-release:
     name: Create GitHub Release
@@ -273,7 +275,7 @@ jobs:
     needs: [ setup, build-android, build-windows ]
     permissions:
       contents: write
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -1,0 +1,6 @@
+exe:
+  installer_name: "beauty_center_Setup"
+  include_redistributables: true
+  install_dir_name: beauty_center
+  create_start_menu_entry: true
+  create_desktop_shortcut: true
