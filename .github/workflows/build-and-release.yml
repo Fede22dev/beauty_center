@@ -3,21 +3,12 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # e.g., v1.2.3
-  workflow_dispatch:
-    inputs:
-      release_type:
-        description: 'Release type'
-        required: true
-        default: 'beta'
-        type: choice
-        options:
-          - production
-          - beta
+      - 'v*'
+  workflow_dispatch: { }
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   FLUTTER_VERSION: '3.35.3'
@@ -26,9 +17,9 @@ env:
 jobs:
   # Setup Job to extract common information
   setup:
-    name: Setup Release Info
+    name: Setup
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     outputs:
       app_name: ${{ steps.app_info.outputs.app_name }}
       app_version: ${{ steps.app_info.outputs.app_version }}
@@ -37,121 +28,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Extract app info
         id: app_info
         run: |
-          # Extract info from pubspec.yaml
-          APP_NAME=$(grep '^name:' pubspec.yaml | sed 's/name: *//' | tr -d '"' | head -1)
-          if [ -z "$APP_NAME" ]; then
-            APP_NAME=${GITHUB_REPOSITORY##*/}
-          fi
-          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          APP_NAME=$(grep '^name:' pubspec.yaml | cut -d' ' -f2 | head -1)
+          [ -z "$APP_NAME" ] && APP_NAME=${GITHUB_REPOSITORY##*/}
           
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
-            APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1 | tr -d '"' | head -1)
+            APP_VERSION=$(grep '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d'+' -f1 | head -1)
+            RELEASE_NAME="$APP_NAME v$APP_VERSION-dev"
             IS_PRERELEASE="true"
-            if [ "$RELEASE_TYPE" = "production" ]; then
-              IS_PRERELEASE="false"
-            fi
-            RELEASE_NAME="$APP_NAME v$APP_VERSION ($RELEASE_TYPE)"
           else
-            RELEASE_TYPE="production"
             APP_VERSION=${GITHUB_REF#refs/tags/v}
-            IS_PRERELEASE="false"
             RELEASE_NAME="$APP_NAME v$APP_VERSION"
+            IS_PRERELEASE="false"
           fi
           
-          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
-          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          {
+            echo "app_name=$APP_NAME"
+            echo "app_version=$APP_VERSION"
+            echo "release_name=$RELEASE_NAME"
+            echo "is_prerelease=$IS_PRERELEASE"
+          } >> $GITHUB_OUTPUT
           
-          # Debug output
-          echo "🚀 Release Info:"
-          echo "  App Name: $APP_NAME"
+          # Debug
+          echo "App Release Info:"
+          echo "  Name: $APP_NAME"
           echo "  Version: $APP_VERSION"
-          echo "  Release Type: $RELEASE_TYPE"
+          echo "  Release Name: $RELEASE_NAME"
           echo "  Is Prerelease: $IS_PRERELEASE"
-
-      #  verify:
-      #    name: Verify (lint, test, scan)
-      #    runs-on: ubuntu-latest
-      #    needs: setup
-      #    permissions:
-      #      contents: read
-      #      security-events: write
-      #    timeout-minutes: 10
-      #    steps:
-      #      - name: Harden Runner
-      #        uses: step-security/harden-runner@v2
-      #        with:
-      #          egress-policy: audit
-      #
-      #      - name: Checkout
-      #        uses: actions/checkout@v4
-      #        with:
-      #          fetch-depth: 0
-      #
-      #      - name: Set up Flutter
-      #        uses: subosito/flutter-action@v2
-      #        with:
-      #          flutter-version: ${{ env.FLUTTER_VERSION }}
-      #          cache: true
-      #
-      #      - name: Flutter doctor
-      #        run: |
-      #          flutter --version
-      #          flutter doctor -v
-      #
-      #      - name: Get dependencies
-      #        run: flutter pub get
-      #
-      #      - name: Verify dependencies
-      #        run: flutter pub deps
-      #
-      #      - name: Generate localization files
-      #        run: flutter gen-l10n
-      #
-      #      - name: Analyze code
-      #        run: flutter analyze --fatal-infos
-      #        continue-on-error: true
-      #
-      #      - name: Check formatting
-      #        run: dart format --set-exit-if-changed .
-      #        continue-on-error: true
-      #
-      #      - name: Run tests
-      #        run: flutter test --coverage --reporter=expanded
-      #        continue-on-error: true
-
-      # - name: Upload coverage to Codecov
-      #   uses: codecov/codecov-action@v3
-      #   with:
-      #     file: coverage/lcov.info
 
   build-android:
     name: Build Android
     runs-on: ubuntu-latest
-    #needs: [ setup, verify ]
-    needs: [ setup ]
-    permissions:
-      contents: read
-    timeout-minutes: 30
+    needs: setup
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # Cache Android SDK
-      - name: Cache Android SDK
-        uses: actions/cache@v3
-        with:
-          path: ~/.android/sdk
-          key: android-sdk-${{ runner.os }}-v1
-          restore-keys: |
-            android-sdk-${{ runner.os }}-
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -169,34 +84,23 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Get dependencies & generate l10n
+      - name: Get dependencies & generate l10n & build APK
         run: |
           flutter pub get
           flutter gen-l10n
+          flutter build apk --release
 
-      - name: Install Fastforge
-        run: dart pub global activate fastforge
-
-      - name: Build Android with Fastforge
+      - name: Rename APK and move to dist dir
         run: |
-          RELEASE_TYPE="${{ github.event.inputs.release_type || 'production' }}"
-          
-          echo "=== Fastforge build env vars: ==="
-          echo "  RELEASE_TYPE=$RELEASE_TYPE"
-          echo "  APP_NAME=$APP_NAME"
-          echo "  APP_VERSION=$APP_VERSION"
-          
-          fastforge release --name $RELEASE_TYPE --jobs android-apk-universal
-        env:
-          APP_NAME: ${{ needs.setup.outputs.app_name }}
-          APP_VERSION: ${{ needs.setup.outputs.app_version }}
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk \
+          dist/${{ needs.setup.outputs.app_name }}_v${{ needs.setup.outputs.app_version }}_universal.apk
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-artifacts
-          path: |
-            dist/**/*.apk
+          path: dist/*.apk
           retention-days: 1
           compression-level: 6
           if-no-files-found: error
@@ -204,11 +108,8 @@ jobs:
   build-windows:
     name: Build Windows
     runs-on: windows-latest
-    #needs: [ setup, verify ]
-    needs: [ setup ]
-    permissions:
-      contents: write  # Needed for Fastforge GitHub publisher
-    timeout-minutes: 30
+    needs: setup
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -219,51 +120,200 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Get dependencies & generate l10n
+      - name: Enable Windows desktop & get dependencies & generate l10n & build
         run: |
+          flutter config --enable-windows-desktop
           flutter pub get
           flutter gen-l10n
+          flutter build windows --release
 
-      - name: Install Fastforge
-        run: dart pub global activate fastforge
-
-      - name: Build Windows with Fastforge
+      - name: Setup Inno Setup
         run: |
-          $RELEASE_TYPE = "${{ github.event.inputs.release_type || 'production' }}"
+          choco install innosetup -y
+          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+
+      - name: Create Inno Setup script
+        run: |
+          $appName = "${{ needs.setup.outputs.app_name }}"
+          $appVersion = "${{ needs.setup.outputs.app_version }}"
           
-          Write-Host "=== Fastforge build env vars: ==="
-          Write-Host "  RELEASE_TYPE: $RELEASE_TYPE"
-          Write-Host "  APP_NAME: $env:APP_NAME"
-          Write-Host "  APP_VERSION: $env:APP_VERSION"
+          $ISS_CONTENT = @"
+            #define AppName "$appName"
+            #define AppVersion "$appVersion"
+            #define AppPublisher "Fede22dev"
+            #define AppURL "https://github.com/Fede22dev/beauty_center"
+            #define AppExeName "$appName.exe"
+            #define AppId "2f38c288-6d20-473b-87cd-5ef9f8bd2f46"
           
-          # Genera make_config.yaml dinamicamente
-          $exeConfig = @"
-          exe:
-            installer_name: "${env:APP_NAME}_Setup_v${env:APP_VERSION}-$RELEASE_TYPE"
-            include_redistributables: true
-            install_dir_name: "${env:APP_NAME}"
-            create_start_menu_entry: true
-            create_desktop_shortcut: true
+            [Setup]
+            AppId={#AppId}
+            AppName={#AppName}
+            AppVersion={#AppVersion}
+            AppVerName={#AppName} {#AppVersion}
+            AppPublisher={#AppPublisher}
+            AppPublisherURL={#AppURL}
+            AppSupportURL={#AppURL}
+            AppUpdatesURL={#AppURL}
+            DefaultDirName={userpf}\{#AppName}
+            DefaultGroupName={#AppName}
+            AllowNoIcons=yes
+            OutputDir=dist
+            OutputBaseFilename={#AppName}_v{#AppVersion}_installer
+            Compression=lzma2/ultra64
+            SolidCompression=yes
+            WizardStyle=modern
+            DisableWelcomePage=no
+            DisableDirPage=no
+            DisableProgramGroupPage=yes
+            DisableReadyPage=no
+            DisableFinishedPage=no
+            ArchitecturesAllowed=x64compatible
+            ArchitecturesInstallIn64BitMode=x64compatible
+            MinVersion=10.0.17763
+            PrivilegesRequired=lowest
+            UninstallDisplayIcon={app}\{#AppExeName}
+            UninstallDisplayName={#AppName}
+            VersionInfoVersion={#AppVersion}
+            VersionInfoCompany={#AppPublisher}
+            VersionInfoDescription={#AppName}
+            CreateUninstallRegKey=yes
+            UpdateUninstallLogAppName=yes
+            CloseApplications=yes
+            RestartApplications=no
+          
+            [Languages]
+            Name: "en"; MessagesFile: "compiler:Default.isl"
+            Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"
+          
+            [Tasks]
+            Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}";
+          
+            [Dirs]
+            Name: "{app}"; Flags: uninsalwaysuninstall
+          
+            [Files]
+            Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs uninsrestartdelete
+            Source: "{app}\unins*.exe"; DestDir: "{tmp}"; Flags: external skipifsourcedoesntexist deleteafterinstall
+          
+            [Icons]
+            Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+            Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
+            Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+          
+            [Run]
+            Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
+          
+            [UninstallRun]
+            Filename: "{cmd}"; Parameters: "/C ""taskkill /f /im {#AppExeName} > nul 2>&1"""; RunOnceId: "KillApp"; Flags: runhidden
+          
+            [UninstallDelete]
+            Type: dirifempty; Name: "{app}"
+          
+            [Code]
+            var
+              PreviousVersion: String;
+              PreviousPath: String;
+          
+            function GetUninstallString(): String;
+              var
+                sUnInstPath: String;
+                sUnInstallString: String;
+              begin
+                sUnInstPath := ExpandConstant('Software\Microsoft\Windows\CurrentVersion\Uninstall\{#AppId}_is1');
+                sUnInstallString := '';
+                if not RegQueryStringValue(HKLM, sUnInstPath, 'UninstallString', sUnInstallString) then
+                  RegQueryStringValue(HKCU, sUnInstPath, 'UninstallString', sUnInstallString);
+                Result := sUnInstallString;
+              end;
+          
+            function GetPreviousVersion(): String;
+              var
+                sUnInstPath: String;
+                sVersion: String;
+              begin
+                sUnInstPath := ExpandConstant('Software\Microsoft\Windows\CurrentVersion\Uninstall\{#AppId}_is1');
+                sVersion := '';
+                if not RegQueryStringValue(HKLM, sUnInstPath, 'DisplayVersion', sVersion) then
+                  RegQueryStringValue(HKCU, sUnInstPath, 'DisplayVersion', sVersion);
+                Result := sVersion;
+              end;
+          
+            function IsUpgrade(): Boolean;
+              begin
+                Result := (GetUninstallString() <> '');
+              end;
+          
+            function UnInstallOldVersion(): Integer;
+              var
+                sUnInstallString: String;
+                iResultCode: Integer;
+              begin
+                Result := 0;
+                sUnInstallString := GetUninstallString();
+                if sUnInstallString <> '' then begin
+                  sUnInstallString := RemoveQuotes(sUnInstallString);
+                  if Exec(sUnInstallString, '/SILENT /NORESTART /SUPPRESSMSGBOXES','', SW_HIDE, ewWaitUntilTerminated, iResultCode) then
+                    Result := 3
+                  else
+                    Result := 2;
+                end else
+                  Result := 1;
+              end;
+          
+            procedure CurStepChanged(CurStep: TSetupStep);
+              var
+                ResultCode: Integer;
+              begin
+                if (CurStep = ssInstall) then
+                  begin
+                    Exec(ExpandConstant('{cmd}'), '/C "taskkill /f /im {#AppExeName} > nul 2>&1"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+          
+                    if IsUpgrade() then
+                      begin
+                        PreviousVersion := GetPreviousVersion();
+                        UnInstallOldVersion();
+                      end;
+                  end;
+              end;
+          
+            function InitializeSetup(): Boolean;
+              begin
+                if IsUpgrade() then
+                  begin
+                    PreviousVersion := GetPreviousVersion();
+                  end;
+                  Result := True;
+              end;
+          
+            function NextButtonClick(CurPageID: Integer): Boolean;
+              begin
+                if (CurPageID = wpWelcome) and IsUpgrade() then
+                  begin
+                    if MsgBox('A previous version (' + PreviousVersion + ') is already installed. Do you want to upgrade to version {#AppVersion}?',
+                      mbConfirmation, MB_YESNO) = IDNO then
+                      begin
+                        Result := False;
+                        Exit;
+                      end;
+                  end;
+                  Result := True;
+              end;
           "@
           
-          New-Item -ItemType Directory -Force -Path windows\packaging\exe
-          $exeConfig | Out-File -Encoding utf8 windows\packaging\exe\make_config.yaml
+          if (!(Test-Path "dist")) { New-Item -ItemType Directory -Path "dist" }
           
-          fastforge release --name $RELEASE_TYPE --jobs windows-installer
-        env:
-          APP_NAME: ${{ needs.setup.outputs.app_name }}
-          APP_VERSION: ${{ needs.setup.outputs.app_version }}
+          $ISS_CONTENT | Out-File -FilePath "installer.iss" -Encoding UTF8
+
+      - name: Build installer
+        run: |
+          mkdir -p dist
+          iscc installer.iss
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
-          path: |
-            dist/**/*.exe
-            dist/**/*.zip
+          path: dist/*.exe
           retention-days: 1
           compression-level: 6
           if-no-files-found: error
@@ -271,56 +321,43 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    #needs: [ setup, verify, build-android, build-windows ]
     needs: [ setup, build-android, build-windows ]
     permissions:
       contents: write
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          path: artifacts
 
-      - name: Prepare release assets
+      - name: Prepare assets
         run: |
           mkdir -p dist
-          APP_NAME="${{ needs.setup.outputs.app_name }}"
-          VERSION="${{ needs.setup.outputs.app_version }}"
+          find artifacts -type f \( -name "*.apk" -o -name "*.exe" \) -exec cp {} dist/ \;
           
-          # Android APKs
-          find artifacts/android-artifacts -name "*.apk" -type f | while read file; do
-            cp "$file" "dist/${APP_NAME}-${VERSION}-$(basename $file)"
-          done
-          
-          # Windows installer/ZIP
-          find artifacts/windows-artifacts -type f | while read file; do
-            ext="${file##*.}"
-            cp "$file" "dist/${APP_NAME}-${VERSION}-windows-installer.$ext"
-          done
-          
-          echo "📦 Final release assets:"
+          echo "Final release assets:"
           ls -la dist/
 
-      #      - name: Generate release notes
-      #        id: release_notes
-      #        run: |
-      #          VERSION="${{ needs.setup.outputs.app_version }}"
-      #
-      #          if [ -f "CHANGELOG.md" ]; then
-      #            CHANGELOG_SECTION=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | head -n -1 | tail -n +2)
-      #            if [ ! -z "$CHANGELOG_SECTION" ]; then
-      #              echo "Found changelog section for version $VERSION"
-      #              echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_OUTPUT
-      #              echo "$CHANGELOG_SECTION" >> $GITHUB_OUTPUT
-      #              echo "EOF" >> $GITHUB_OUTPUT
-      #            fi
-      #          fi
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+            if [[ -n "$LAST_TAG" ]]; then
+              CHANGELOG=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+            else
+              CHANGELOG=$(git log --pretty=format:"- %s" --no-merges -n 10)
+            fi
+          else
+            CHANGELOG="Manual release from workflow dispatch"
+          fi
+          
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -335,36 +372,35 @@ jobs:
             | 🤖 Android | `*-universal-release.apk` | Universal (all architectures) |
             | 💻 Windows | `*-windows-installer.exe` | Windows Installer (x64) |
             
+            ## 🔄 What's Changed
+            ${{ steps.changelog.outputs.changelog }}
+            
             ## 🛠 Build Info
             - **Version:** `${{ needs.setup.outputs.app_version }}`
             - **Flutter:** `${{ env.FLUTTER_VERSION }}`
-            - **Built:** `${{ github.event.head_commit.timestamp }}`
+            - **Built:** ${{ github.event.head_commit.timestamp }}
+            - **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
             
-            ## 📥 Installation
-            **Android:** Download the universal APK.
+            ## 📥 Installation Instructions
             
-            **Windows:** Download and run the `.exe` installer. Windows may show a security warning - this is normal for unsigned installers.
+            ### Android
+            1. Download the **universal APK** for maximum compatibility
+            2. Enable "Install from Unknown Sources" in Android settings
+            3. Install the APK
+            
+            ### Windows  
+            1. Download the **installer.exe**
+            2. Run the installer (Windows Defender may show a warning - click "More info" → "Run anyway")
+            
+            ## 🔒 Security Note
+            These builds are unsigned. Windows and Android may show security warnings - this is normal for independent developers.
             
             ---
-            _🤖 Automated release built with GitHub Actions and Fastforge_
-          files: ./dist/*
+            _🤖 Automated release built by GitHub Actions_
+          files: dist/*
           generate_release_notes: true
           draft: false
           prerelease: ${{ needs.setup.outputs.is_prerelease == 'true' }}
           make_latest: ${{ needs.setup.outputs.is_prerelease == 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-#  cleanup:
-#    name: Cleanup
-#    runs-on: ubuntu-latest
-#    needs: [ create-release ]
-#    if: always()
-#    steps:
-#      - name: Delete old releases (keep last 10)
-#        uses: dev-drprasad/delete-older-releases@v0.3.2
-#        with:
-#          keep_latest: 10
-#          delete_tag_pattern: v
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

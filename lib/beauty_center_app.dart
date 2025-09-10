@@ -5,7 +5,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/constants/app_constants.dart';
-import 'core/providers/app_providers.dart';
 import 'core/router/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'home/presentation/desktop/pages/home_page_desktop.dart';
@@ -53,12 +52,9 @@ class BeautyCenterApp extends ConsumerWidget {
           DeviceOrientation.portraitDown,
         ]);
 
-        final locale = ref.watch(appLocaleProvider);
-
         return MaterialApp.router(
           title: 'Beauty Center',
           debugShowCheckedModeBanner: false,
-          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           theme: AppTheme.light,

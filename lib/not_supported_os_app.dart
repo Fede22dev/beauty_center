@@ -17,6 +17,7 @@ class NotSupportedOsApp extends ConsumerWidget {
         splitScreenMode: true,
         builder: (_, _) {
           final locale = ref.watch(appLocaleProvider);
+
           return MaterialApp(
             title: 'Beauty Center',
             debugShowCheckedModeBanner: false,

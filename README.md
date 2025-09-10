@@ -71,10 +71,6 @@ flutter gen-l10n # To generate localization files
 flutter run
 
 flutter run -d windows
-
-flutter build windows
-
-flutter build apk
 ```
 
 This app developed and tested only on **Windows** and **Android**
