@@ -13,7 +13,7 @@ class _AppointmentsPageState extends State<AppointmentsPage>
   bool get wantKeepAlive => true;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(final BuildContext context) {
     super.build(context);
     print('AppointmentsPage');
     return const Center(child: Text('Agenda appuntamenti'));

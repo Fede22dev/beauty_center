@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
-/// Repository singleton per gestire lo stato di connessione
 class ConnectivityRepository {
   ConnectivityRepository._();
 
@@ -18,13 +17,17 @@ class ConnectivityRepository {
     final initial = await _connectivity.checkConnectivity();
     _isOffline.value = !initial.any(
       (final r) =>
-          r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
+          r == ConnectivityResult.wifi ||
+          r == ConnectivityResult.mobile ||
+          r == ConnectivityResult.ethernet,
     );
 
     _connectivity.onConnectivityChanged.listen((final result) {
       _isOffline.value = !result.any(
         (final r) =>
-            r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
+            r == ConnectivityResult.wifi ||
+            r == ConnectivityResult.mobile ||
+            r == ConnectivityResult.ethernet,
       );
     });
   }

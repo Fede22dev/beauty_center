@@ -1,4 +1,4 @@
-import 'package:beauty_center/home/providers/app_route_ui_provider.dart';
+import 'package:beauty_center/core/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -144,7 +144,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   }
 
   Widget _buildCachedPage(final int index) {
-    // Lazy loading con cache
+    // Lazy loading cache.
     _pageCache[index] ??= AppRoute.values[index].buildPage;
     return _pageCache[index]!;
   }
@@ -234,17 +234,14 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
         ],
       ),
       bottomNavigationBar: Consumer(
-        builder: (final context, final ref, _) {
-          final selectedIndex = ref.watch(homeTabProvider).index;
-          return SafeArea(
-            child: BottomNav(
-              selectedIndex: selectedIndex,
-              onTabChange: _onBottomNavTabChanged,
-              navScrollController: _navScrollController,
-              tabKeys: _tabKeys,
-            ),
-          );
-        },
+        builder: (final context, final ref, _) => SafeArea(
+          child: BottomNav(
+            selectedIndex: ref.watch(homeTabProvider).index,
+            onTabChange: _onBottomNavTabChanged,
+            navScrollController: _navScrollController,
+            tabKeys: _tabKeys,
+          ),
+        ),
       ),
     );
   }

@@ -201,28 +201,33 @@ if (-not $SkipWindows)
 
         $ISS_FILE = "$PWD\${APP_NAME}_installer.iss"
 
+        $appNameRaw = "$APP_NAME"
+        $appNameDisplay = $appNameRaw -replace '_', ' '
+        $appNameDisplay = (Get-Culture).TextInfo.ToTitleCase($appNameDisplay)
+
         $ISS_CONTENT = @"
-            #define AppName "$APP_NAME"
+            #define AppNameRaw "$appNameRaw"
+            #define AppNameDisplay "$appNameDisplay"
             #define AppVersion "$APP_VERSION"
             #define AppPublisher "Fede22dev"
             #define AppURL "https://github.com/Fede22dev/beauty_center"
-            #define AppExeName "$APP_NAME.exe"
-            #define AppId "f38c288-6d20-473b-87cd-5ef9f8bd2f46"
+            #define AppExeName "$appNameRaw.exe"
+            #define AppId "2f38c288-6d20-473b-87cd-5ef9f8bd2f46"
 
             [Setup]
             AppId={#AppId}
-            AppName={#AppName}
+            AppName={#AppNameDisplay}
             AppVersion={#AppVersion}
-            AppVerName={#AppName} {#AppVersion}
+            AppVerName={#AppNameDisplay} {#AppVersion}
             AppPublisher={#AppPublisher}
             AppPublisherURL={#AppURL}
             AppSupportURL={#AppURL}
             AppUpdatesURL={#AppURL}
-            DefaultDirName={userpf}\{#AppName}
-            DefaultGroupName={#AppName}
+            DefaultDirName={userpf}\{#AppNameDisplay}
+            DefaultGroupName={#AppNameDisplay}
             AllowNoIcons=yes
             OutputDir=dist
-            OutputBaseFilename={#AppName}_v{#AppVersion}_installer
+            OutputBaseFilename={#AppNameRaw}_v{#AppVersion}_installer
             Compression=lzma2/ultra64
             SolidCompression=yes
             WizardStyle=modern
@@ -236,10 +241,10 @@ if (-not $SkipWindows)
             MinVersion=10.0.17763
             PrivilegesRequired=lowest
             UninstallDisplayIcon={app}\{#AppExeName}
-            UninstallDisplayName={#AppName}
+            UninstallDisplayName={#AppNameDisplay}
             VersionInfoVersion={#AppVersion}
             VersionInfoCompany={#AppPublisher}
-            VersionInfoDescription={#AppName}
+            VersionInfoDescription={#AppNameDisplay}
             CreateUninstallRegKey=yes
             UpdateUninstallLogAppName=yes
             CloseApplications=yes
@@ -260,12 +265,12 @@ if (-not $SkipWindows)
             Source: "{app}\unins*.exe"; DestDir: "{tmp}"; Flags: external skipifsourcedoesntexist deleteafterinstall
 
             [Icons]
-            Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
-            Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
-            Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+            Name: "{group}\{#AppNameDisplay}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+            Name: "{group}\{cm:UninstallProgram,{#AppNameDisplay}}"; Filename: "{uninstallexe}"
+            Name: "{autodesktop}\{#AppNameDisplay}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
             [Run]
-            Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
+            Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppNameDisplay}}"; Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
 
             [UninstallRun]
             Filename: "{cmd}"; Parameters: "/C ""taskkill /f /im {#AppExeName} > nul 2>&1"""; RunOnceId: "KillApp"; Flags: runhidden
@@ -276,7 +281,6 @@ if (-not $SkipWindows)
             [Code]
             var
               PreviousVersion: String;
-
             function GetUninstallString(): String;
               var
                 sUnInstPath: String;

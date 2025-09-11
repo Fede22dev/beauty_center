@@ -1,4 +1,4 @@
-import 'package:beauty_center/home/providers/app_route_ui_provider.dart';
+import 'package:beauty_center/core/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -129,7 +129,14 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
       body: OfflineScaffoldOverlay(
         child: Row(
           children: [
-            SafeArea(child: SideNav(controller: _railController)),
+            SafeArea(
+              child: Consumer(
+                builder: (final context, final ref, _) => SideNav(
+                  selectedIndex: ref.watch(homeTabProvider).index,
+                  controller: _railController,
+                ),
+              ),
+            ),
             AnimatedBuilder(
               animation: _railController,
               builder: (final context, _) => AnimatedPadding(
@@ -146,14 +153,11 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
             Expanded(
               child: SafeArea(
                 child: Consumer(
-                  builder: (final context, final ref, _) {
-                    final currentIndex = ref.watch(homeTabProvider).index;
-                    return LazyKeepAliveStack(
-                      index: currentIndex,
-                      itemCount: AppRoute.values.length,
-                      itemBuilder: _buildPage,
-                    );
-                  },
+                  builder: (final context, final ref, _) => LazyKeepAliveStack(
+                    index: ref.watch(homeTabProvider).index,
+                    itemCount: AppRoute.values.length,
+                    itemBuilder: _buildPage,
+                  ),
                 ),
               ),
             ),

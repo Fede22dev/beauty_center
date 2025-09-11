@@ -24,7 +24,7 @@ class OfflineScaffoldOverlay extends StatelessWidget {
           top: 0,
           left: 0.2.sw,
           right: 0.2.sw,
-          child: const OfflineBanner(isOffline: false),
+          child: OfflineBanner(isOffline: offline),
         ),
       ],
     ),
@@ -78,7 +78,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
     if (_showOnlineBanner) {
       return AnimatedContainer(
         duration: kDefaultAppAnimationsDuration,
-        height: (kTargetOsIsDesktop ? 36 : 32).h,
+        height: (kTargetOsIsDesktop ? 38 : 32).h,
         width: 0.8.sw,
         decoration: BoxDecoration(
           color: Colors.green,

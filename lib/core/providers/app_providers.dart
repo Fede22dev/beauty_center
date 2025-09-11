@@ -1,101 +1,53 @@
-import 'package:flutter/material.dart';
+import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../l10n/app_localizations_en.dart';
-import '../../l10n/app_localizations_it.dart';
 
 // ============================================================================
-// LOCALE MANAGEMENT (State Management)
+// SIMPLIFIED LOCALIZATION SYSTEM (System Locale Only)
 // ============================================================================
 
-/// Current app locale state
-final appLocaleProvider = StateProvider<Locale>(
-  (final ref) => const Locale('en'),
-); // Default locale);
+/// System locale provider - automatically detects and provides system locale
+final systemLocaleProvider = Provider<Locale>(
+  (final ref) => PlatformDispatcher.instance.locale,
+);
 
-/// Supported locales list
+/// Supported locales list (read-only)
 final supportedLocalesProvider = Provider<List<Locale>>(
   (final ref) => AppLocalizations.supportedLocales,
 );
 
-// ============================================================================
-// LOCALIZATION ACCESS (Context-dependent)
-// ============================================================================
+/// Current effective locale provider
+/// This determines which locale is actually being used by the app
+final effectiveLocaleProvider = Provider<Locale>((final ref) {
+  final systemLocale = ref.watch(systemLocaleProvider);
+  final supportedLocales = ref.watch(supportedLocalesProvider);
 
-/// Primary way to get localizations in widgets
-final l10nProvider = Provider.family<AppLocalizations, BuildContext>((
-  final ref,
-  final context,
-) {
-  // This will rebuild when locale changes due to MaterialApp rebuild
-  final l10n = AppLocalizations.of(context);
-  if (l10n == null) {
-    throw StateError('AppLocalizations not found in context');
-  }
-  return l10n;
+  // Find the best match for system locale
+  return _findBestMatch(systemLocale, supportedLocales);
 });
 
-/// Null-safe version for edge cases
-final l10nNullableProvider = Provider.family<AppLocalizations?, BuildContext>(
-  (final ref, final context) => AppLocalizations.of(context),
-);
-
-// ============================================================================
-// BUSINESS LOGIC LOCALIZATIONS (Context-free)
-// ============================================================================
-
-/// For use in providers, services, and business logic
-/// Requires manual locale tracking but works without context
-class LocalizationRepository {
-  AppLocalizations? _current;
-
-  void updateLocale(final Locale locale) {
-    // Map locale to AppLocalizations instance
-    switch (locale.languageCode) {
-      case 'it':
-        _current = AppLocalizationsIt();
-        break;
-      case 'en':
-      default:
-        _current = AppLocalizationsEn();
-        break;
+/// Helper function to find best locale match
+Locale _findBestMatch(
+  final Locale systemLocale,
+  final List<Locale> supportedLocales,
+) {
+  // First try exact match (language + country)
+  for (final locale in supportedLocales) {
+    if (locale.languageCode == systemLocale.languageCode &&
+        locale.countryCode == systemLocale.countryCode) {
+      return locale;
     }
   }
 
-  AppLocalizations get current => _current ?? AppLocalizationsEn();
-
-  String translate(final String Function(AppLocalizations) selector) =>
-      selector(current);
-}
-
-/// Provider for business logic localizations
-final localizationRepositoryProvider =
-    StateNotifierProvider<LocalizationNotifier, AppLocalizations>((final ref) {
-      final notifier = LocalizationNotifier(ref);
-
-      // Listen to locale changes and update repository
-      ref.listen(appLocaleProvider, (final previous, final next) {
-        notifier.updateLocale(next);
-      });
-
-      return notifier;
-    });
-
-class LocalizationNotifier extends StateNotifier<AppLocalizations> {
-  LocalizationNotifier(this.ref) : super(AppLocalizationsEn());
-
-  final Ref ref;
-
-  void updateLocale(final Locale locale) {
-    switch (locale.languageCode) {
-      case 'it':
-        state = AppLocalizationsIt();
-        break;
-      case 'en':
-      default:
-        state = AppLocalizationsEn();
-        break;
+  // Then try language match only
+  for (final locale in supportedLocales) {
+    if (locale.languageCode == systemLocale.languageCode) {
+      return locale;
     }
   }
+
+  // Fallback to first supported locale (usually 'en')
+  return supportedLocales.first;
 }

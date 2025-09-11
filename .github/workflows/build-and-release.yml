@@ -79,7 +79,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
+          cache: 'pub'
 
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
@@ -118,7 +118,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
+          cache: 'pub'
 
       - name: Enable Windows desktop & get dependencies & generate l10n & build
         run: |
@@ -134,31 +134,34 @@ jobs:
 
       - name: Create Inno Setup script
         run: |
-          $appName = "${{ needs.setup.outputs.app_name }}"
+          $appNameRaw = "${{ needs.setup.outputs.app_name }}"         
+          $appNameDisplay = $appNameRaw -replace '_', ' ' 
+          $appNameDisplay = (Get-Culture).TextInfo.ToTitleCase($appNameDisplay)
           $appVersion = "${{ needs.setup.outputs.app_version }}"
           
           $ISS_CONTENT = @"
-            #define AppName "$appName"
+            #define AppNameRaw "$appNameRaw"
+            #define AppNameDisplay "$appNameDisplay"
             #define AppVersion "$appVersion"
             #define AppPublisher "Fede22dev"
             #define AppURL "https://github.com/Fede22dev/beauty_center"
-            #define AppExeName "$appName.exe"
+            #define AppExeName "$appNameRaw.exe"
             #define AppId "2f38c288-6d20-473b-87cd-5ef9f8bd2f46"
           
             [Setup]
             AppId={#AppId}
-            AppName={#AppName}
+            AppName={#AppNameDisplay}
             AppVersion={#AppVersion}
-            AppVerName={#AppName} {#AppVersion}
+            AppVerName={#AppNameDisplay} {#AppVersion}
             AppPublisher={#AppPublisher}
             AppPublisherURL={#AppURL}
             AppSupportURL={#AppURL}
             AppUpdatesURL={#AppURL}
-            DefaultDirName={userpf}\{#AppName}
-            DefaultGroupName={#AppName}
+            DefaultDirName={userpf}\{#AppNameDisplay}
+            DefaultGroupName={#AppNameDisplay}
             AllowNoIcons=yes
             OutputDir=dist
-            OutputBaseFilename={#AppName}_v{#AppVersion}_installer
+            OutputBaseFilename={#AppNameRaw}_v{#AppVersion}_installer
             Compression=lzma2/ultra64
             SolidCompression=yes
             WizardStyle=modern
@@ -172,10 +175,10 @@ jobs:
             MinVersion=10.0.17763
             PrivilegesRequired=lowest
             UninstallDisplayIcon={app}\{#AppExeName}
-            UninstallDisplayName={#AppName}
+            UninstallDisplayName={#AppNameDisplay}
             VersionInfoVersion={#AppVersion}
             VersionInfoCompany={#AppPublisher}
-            VersionInfoDescription={#AppName}
+            VersionInfoDescription={#AppNameDisplay}
             CreateUninstallRegKey=yes
             UpdateUninstallLogAppName=yes
             CloseApplications=yes
@@ -196,12 +199,12 @@ jobs:
             Source: "{app}\unins*.exe"; DestDir: "{tmp}"; Flags: external skipifsourcedoesntexist deleteafterinstall
           
             [Icons]
-            Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
-            Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
-            Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+            Name: "{group}\{#AppNameDisplay}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+            Name: "{group}\{cm:UninstallProgram,{#AppNameDisplay}}"; Filename: "{uninstallexe}"
+            Name: "{autodesktop}\{#AppNameDisplay}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
           
             [Run]
-            Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
+            Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppNameDisplay}}"; Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
           
             [UninstallRun]
             Filename: "{cmd}"; Parameters: "/C ""taskkill /f /im {#AppExeName} > nul 2>&1"""; RunOnceId: "KillApp"; Flags: runhidden
@@ -211,9 +214,7 @@ jobs:
           
             [Code]
             var
-              PreviousVersion: String;
-              PreviousPath: String;
-          
+              PreviousVersion: String;          
             function GetUninstallString(): String;
               var
                 sUnInstPath: String;
@@ -301,7 +302,6 @@ jobs:
           "@
           
           if (!(Test-Path "dist")) { New-Item -ItemType Directory -Path "dist" }
-          
           $ISS_CONTENT | Out-File -FilePath "installer.iss" -Encoding UTF8
 
       - name: Build installer

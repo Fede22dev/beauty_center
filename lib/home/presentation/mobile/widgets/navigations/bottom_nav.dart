@@ -1,10 +1,11 @@
-import 'package:beauty_center/home/providers/app_route_ui_provider.dart';
+import 'package:beauty_center/core/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/router/app_routes.dart';
+import '../../../widgets/animated_rotation_icon.dart';
 
 class BottomNav extends StatelessWidget {
   const BottomNav({
@@ -39,7 +40,7 @@ class BottomNav extends StatelessWidget {
           BoxShadow(
             spreadRadius: -10.r,
             blurRadius: 60.r,
-            color: Colors.black.withValues(alpha: 0.08),
+            color: colorScheme.primary.withValues(alpha: 0.08),
             offset: Offset(0.w, 25.w),
           ),
         ],
@@ -73,7 +74,7 @@ class BottomNav extends StatelessWidget {
                             borderRadius: BorderRadius.all(
                               Radius.circular(16.r),
                             ),
-                            leading: AnimatedLeadingIcon(
+                            leading: AnimatedRotationIcon(
                               icon: tab.icon,
                               color: tab.color,
                               isSelected: selectedIndex == tab.index,
@@ -100,53 +101,4 @@ class BottomNav extends StatelessWidget {
       ),
     );
   }
-}
-
-class AnimatedLeadingIcon extends StatelessWidget {
-  const AnimatedLeadingIcon({
-    required this.icon,
-    required this.color,
-    required this.isSelected,
-    required this.size,
-    super.key,
-  });
-
-  final IconData icon;
-  final Color color;
-  final bool isSelected;
-  final double size;
-
-  @override
-  Widget build(final BuildContext context) => Stack(
-    alignment: Alignment.center,
-    children: [
-      // Rotation + fill/weight animation
-      AnimatedRotation(
-        // 0 turns -> 1 turn (360°). On deselect it rotates back.
-        turns: isSelected ? 1 : 0,
-        duration: Duration(
-          milliseconds: isSelected
-              ? kDefaultAppAnimationsDuration.inMilliseconds * 2
-              : 0,
-        ),
-        curve: Curves.easeInOutCubic,
-        child: TweenAnimationBuilder<double>(
-          // t goes 0 -> 1 when selected, 1 -> 0 when deselected
-          tween: Tween<double>(begin: 0, end: isSelected ? 1 : 0),
-          duration: Duration(
-            milliseconds: kDefaultAppAnimationsDuration.inMilliseconds * 2,
-          ),
-          curve: Curves.easeInOutCubic,
-          // Smoothly morph outline -> filled, and inverse
-          builder: (final context, final tick, _) => Icon(
-            icon,
-            size: size,
-            weight: 400 + (700 - 400) * tick,
-            fill: tick,
-            color: color,
-          ),
-        ),
-      ),
-    ],
-  );
 }

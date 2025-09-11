@@ -2,14 +2,14 @@ import 'package:beauty_center/core/extensions/riverpod_l10n_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../core/router/app_routes.dart';
 import '../../features/appointments/presentation/pages/appointments_page.dart';
 import '../../features/clients/presentation/pages/clients_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/statistics/presentation/pages/statistics_page.dart';
 import '../../features/treatments/presentation/pages/treatments_page.dart';
+import '../router/app_routes.dart';
 
-/// UI-specific extensions for AppRoute (icons, localized labels).
+/// UI-specific extensions for AppRoute.
 extension AppRouteUiX on AppRoute {
   IconData get icon => switch (this) {
     AppRoute.appointments => Symbols.calendar_month_rounded,
