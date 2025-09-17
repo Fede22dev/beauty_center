@@ -6,29 +6,25 @@ import 'package:flutter/foundation.dart';
 class ConnectivityRepository {
   ConnectivityRepository._();
 
-  static final ConnectivityRepository instance = ConnectivityRepository._();
+  static final instance = ConnectivityRepository._();
 
-  final Connectivity _connectivity = Connectivity();
-  final ValueNotifier<bool> _isOffline = ValueNotifier<bool>(false);
+  final _connectivity = Connectivity();
+  final _isOffline = ValueNotifier<bool>(false);
 
   ValueListenable<bool> get isOfflineListenable => _isOffline;
 
-  Future<void> init() async {
-    final initial = await _connectivity.checkConnectivity();
-    _isOffline.value = !initial.any(
-      (final r) =>
-          r == ConnectivityResult.wifi ||
-          r == ConnectivityResult.mobile ||
-          r == ConnectivityResult.ethernet,
-    );
-
-    _connectivity.onConnectivityChanged.listen((final result) {
-      _isOffline.value = !result.any(
-        (final r) =>
-            r == ConnectivityResult.wifi ||
-            r == ConnectivityResult.mobile ||
-            r == ConnectivityResult.ethernet,
+  bool _isDisconnected(final Iterable<ConnectivityResult> results) =>
+      !results.any(
+        (final result) =>
+            result == ConnectivityResult.wifi ||
+            result == ConnectivityResult.mobile ||
+            result == ConnectivityResult.ethernet,
       );
+
+  Future<void> init() async {
+    _isOffline.value = _isDisconnected(await _connectivity.checkConnectivity());
+    _connectivity.onConnectivityChanged.listen((final results) {
+      _isOffline.value = _isDisconnected(results);
     });
   }
 }

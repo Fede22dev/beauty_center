@@ -8,7 +8,7 @@ import 'beauty_center_app.dart';
 import 'core/connectivity/connectivity_repository.dart';
 import 'not_supported_os_app.dart';
 
-void main() async {
+Future<void> main() async {
   if (kIsWeb || !(Platform.isAndroid || Platform.isWindows)) {
     runApp(const NotSupportedOsApp());
     return;

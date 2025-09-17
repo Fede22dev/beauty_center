@@ -1,56 +1,37 @@
-import 'package:beauty_center/core/providers/app_route_ui_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/router/app_routes.dart';
+import '../../../../core/tabs/app_tabs.dart';
 import '../../../../core/widgets/offline_banner.dart';
-import '../../../providers/home_provider.dart';
+import '../../../providers/home_tab_provider.dart';
 import '../widgets/navigations/bottom_nav.dart';
 
 class HomePageMobile extends ConsumerStatefulWidget {
-  const HomePageMobile({super.key, this.initialSegment});
-
-  final String? initialSegment;
+  const HomePageMobile({super.key});
 
   @override
   ConsumerState<HomePageMobile> createState() => _HomePageMobileState();
 }
 
 class _HomePageMobileState extends ConsumerState<HomePageMobile> {
-  // Cache pages to preserve state and avoid rebuilds nav (compact layout)
-  late final List<Widget?> _pageCache;
-
-  // Keys to auto-scroll the selected bottom tab into view (compact layout).
   late final List<GlobalKey> _tabKeys;
-
-  GoRouter? _router;
-  VoidCallback? _routerListener;
-
   late final PageController _pageController;
   late final ScrollController _navScrollController;
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
 
-    _pageCache = List<Widget?>.filled(AppRoute.values.length, null);
+    final initialTabIndex = AppTabs.defaultTab.index;
 
-    _tabKeys = List<GlobalKey>.generate(
-      AppRoute.values.length,
-      (_) => GlobalKey(),
-    );
-
-    final initialTabIndex = appRouteFromSegmentOrDefault(
-      widget.initialSegment,
-    ).index;
-
+    _tabKeys = List.generate(AppTabs.values.length, (_) => GlobalKey());
     _pageController = PageController(initialPage: initialTabIndex);
     _navScrollController = ScrollController();
+    _pages = AppTabs.values.map((final tab) => tab.buildPage).toList();
 
-    // Sync provider state on first build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(homeTabProvider.notifier).setIndex(initialTabIndex);
@@ -59,82 +40,23 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Deep links typed in the address bar on web/desktop.
-    final router = GoRouter.of(context);
-    if (_router != router) {
-      if (_router != null && _routerListener != null) {
-        _router!.routerDelegate.removeListener(_routerListener!);
-      }
-
-      _router = router;
-      _routerListener = _onRouteChanged;
-      _router!.routerDelegate.addListener(_routerListener!);
-    }
-  }
-
-  @override
   void dispose() {
     _pageController.dispose();
     _navScrollController.dispose();
-
-    if (_router != null && _routerListener != null) {
-      _router!.routerDelegate.removeListener(_routerListener!);
-    }
-
     super.dispose();
   }
 
-  void _onRouteChanged() {
-    // Sync index from current location (supports hash strategy).
-    final info = _router!.routeInformationProvider.value;
-    final location = info.uri.toString();
-    final uri = Uri.parse(location);
-    final segment = uri.pathSegments.isNotEmpty
-        ? uri.pathSegments.first
-        : kDefaultRoute.segment;
-    final route = appRouteFromSegmentOrDefault(segment);
-    final index = route.index;
-    if (index != ref.read(homeTabProvider.notifier).index) {
-      _pageController.jumpToPage(index);
-    }
-  }
-
-  // Unified setter to keep rail, page, router, and provider in sync.
-  void _setIndex(final int newIndex) {
-    final currIndex = ref.read(homeTabProvider.notifier).index;
-    if (newIndex == currIndex) return;
-
-    ref.read(homeTabProvider.notifier).setIndex(newIndex);
-
-    // Route change (avoid loops by comparing current route).
-    final targetPath = AppRoute.values[newIndex].path;
-    final info = _router?.routeInformationProvider.value;
-    final currentLocation = info?.uri.toString() ?? kDefaultRoute.path;
-    if (mounted && currentLocation != targetPath) {
-      context.go(targetPath);
-    }
-
-    // Scroll the selected bottom tab into view on compact layout.
-    _scrollActiveTabIntoView();
-  }
-
-  void _onBottomNavTabChanged(final int newIndex) {
-    // Jump to page call -> _onPageChanged and propagates to _setIndex.
-    _pageController.jumpToPage(newIndex);
-  }
-
   void _onPageChanged(final int newIndex) {
-    _setIndex(newIndex);
+    ref.read(homeTabProvider.notifier).setIndex(newIndex);
+    _scrollActiveTabIntoView();
   }
 
   void _scrollActiveTabIntoView({
     final Duration duration = kDefaultAppAnimationsDuration,
   }) {
-    final context =
-        _tabKeys[ref.read(homeTabProvider.notifier).index].currentContext;
+    final context = _tabKeys[ref.read(homeTabProvider).index].currentContext;
     if (context == null) return;
+
     Scrollable.ensureVisible(
       context,
       alignment: 0.5,
@@ -143,50 +65,44 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     );
   }
 
-  Widget _buildCachedPage(final int index) {
-    // Lazy loading cache.
-    _pageCache[index] ??= AppRoute.values[index].buildPage;
-    return _pageCache[index]!;
-  }
+  PreferredSizeWidget _buildAppBar(final ColorScheme colorScheme) {
+    final currentTabColor =
+        AppTabs.values[ref.read(homeTabProvider).index].color;
 
-  PreferredSizeWidget _buildAppBar(final ColorScheme colorScheme) =>
-      PreferredSize(
-        preferredSize: Size.fromHeight(kToolbarHeight.h),
-        child: AnimatedContainer(
-          duration: kDefaultAppAnimationsDuration,
-          curve: Curves.easeInOutQuint,
-          decoration: BoxDecoration(
-            color: Color.alphaBlend(
-              AppRoute.values[ref.read(homeTabProvider.notifier).index].color
-                  .withValues(alpha: 0.35),
-              colorScheme.surfaceContainer,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppRoute
-                    .values[ref.read(homeTabProvider.notifier).index]
-                    .color
-                    .withValues(alpha: 0.1),
-                blurRadius: 8.r,
-                offset: Offset(0, 2.h),
-              ),
-            ],
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
+    return PreferredSize(
+      preferredSize: Size.fromHeight(kToolbarHeight.h),
+      child: AnimatedContainer(
+        duration: kDefaultAppAnimationsDuration,
+        curve: Curves.easeInOutQuint,
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            currentTabColor.withValues(alpha: 0.35),
+            colorScheme.surfaceContainer,
           ),
-          child: SafeArea(
-            child: Center(
-              child: Text(
-                'Beauty Center',
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.bold,
-                ),
+          boxShadow: [
+            BoxShadow(
+              color: currentTabColor.withValues(alpha: 0.1),
+              blurRadius: 8.r,
+              offset: Offset(0, 2.h),
+            ),
+          ],
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Text(
+              'Beauty Center',
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontSize: 18.sp,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
 
   @override
   Widget build(final BuildContext context) {
@@ -194,53 +110,29 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
 
     // COMPACT: AppBar + Inline offline banner + PageView (25% screen swipe left/right) + Bottom Navigation.
     return Scaffold(
-      extendBody: true,
       appBar: _buildAppBar(colorScheme),
+      backgroundColor: colorScheme.surfaceContainer,
       body: Column(
         children: [
           const InlineConnectivityBanner(),
           Expanded(
             child: SafeArea(
-              top: false,
-              bottom: false,
-              child: LayoutBuilder(
-                builder: (final context, final constraints) => Stack(
-                  children: [
-                    PageView.builder(
-                      controller: _pageController,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: AppRoute.values.length,
-                      onPageChanged: _onPageChanged,
-                      itemBuilder: (final context, final index) =>
-                          _buildCachedPage(index),
-                    ),
-                    Positioned(
-                      left: 0.25.sw,
-                      right: 0.25.sw,
-                      top: 0,
-                      bottom: 0,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onHorizontalDragStart: (_) {},
-                        onHorizontalDragUpdate: (_) {},
-                        onHorizontalDragEnd: (_) {},
-                      ),
-                    ),
-                  ],
-                ),
+              child: PageView(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: _onPageChanged,
+                children: _pages,
               ),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: Consumer(
-        builder: (final context, final ref, _) => SafeArea(
-          child: BottomNav(
-            selectedIndex: ref.watch(homeTabProvider).index,
-            onTabChange: _onBottomNavTabChanged,
-            navScrollController: _navScrollController,
-            tabKeys: _tabKeys,
-          ),
+      bottomNavigationBar: SafeArea(
+        child: BottomNav(
+          selectedIndex: ref.watch(homeTabProvider).index,
+          onTabChange: _pageController.jumpToPage,
+          navScrollController: _navScrollController,
+          tabKeys: _tabKeys,
         ),
       ),
     );

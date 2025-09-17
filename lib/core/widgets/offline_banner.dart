@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:beauty_center/core/extensions/riverpod_l10n_extensions.dart';
+import 'package:beauty_center/core/extensions/l10n_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../connectivity/connectivity_repository.dart';
 import '../constants/app_constants.dart';
 
+/// Overlay that envelops the shelf and shows the offline banner at the top.
 class OfflineScaffoldOverlay extends StatelessWidget {
   const OfflineScaffoldOverlay({required this.child, super.key});
 
@@ -16,10 +17,10 @@ class OfflineScaffoldOverlay extends StatelessWidget {
   @override
   Widget build(final BuildContext context) => ValueListenableBuilder<bool>(
     valueListenable: ConnectivityRepository.instance.isOfflineListenable,
-    builder: (final context, final offline, final child) => Stack(
+    builder: (final context, final offline, _) => Stack(
       fit: StackFit.expand,
       children: [
-        this.child,
+        child,
         Positioned(
           top: 0,
           left: 0.2.sw,
@@ -31,13 +32,14 @@ class OfflineScaffoldOverlay extends StatelessWidget {
   );
 }
 
+/// Inline banner, for example inside a list of or page or app bar.
 class InlineConnectivityBanner extends StatelessWidget {
   const InlineConnectivityBanner({super.key});
 
   @override
   Widget build(final BuildContext context) => ValueListenableBuilder<bool>(
     valueListenable: ConnectivityRepository.instance.isOfflineListenable,
-    builder: (final context, final offline, final child) =>
+    builder: (final context, final offline, _) =>
         OfflineBanner(isOffline: offline),
   );
 }
@@ -52,33 +54,31 @@ class OfflineBanner extends StatefulWidget {
 }
 
 class _OfflineBannerState extends State<OfflineBanner> {
-  bool _showOnlineBanner = false;
-  bool _firstBuildDone = false;
+  var _showOnlineBanner = false;
+  var _initialized = false;
 
   @override
   void didUpdateWidget(covariant final OfflineBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (_firstBuildDone) {
-      if (oldWidget.isOffline && !widget.isOffline) {
-        setState(() => _showOnlineBanner = true);
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) setState(() => _showOnlineBanner = false);
-        });
-      }
+    if (_initialized && oldWidget.isOffline && !widget.isOffline) {
+      setState(() => _showOnlineBanner = true);
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _showOnlineBanner = false);
+      });
     } else {
-      _firstBuildDone = true;
+      _initialized = true;
     }
   }
 
   @override
   Widget build(final BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+    // Banner ONLINE
     if (_showOnlineBanner) {
       return AnimatedContainer(
         duration: kDefaultAppAnimationsDuration,
-        height: (kTargetOsIsDesktop ? 38 : 32).h,
+        curve: Curves.easeInOut,
+        height: (kIsDesktop ? 38 : 32).h,
         width: 0.8.sw,
         decoration: BoxDecoration(
           color: Colors.green,
@@ -88,12 +88,8 @@ class _OfflineBannerState extends State<OfflineBanner> {
           child: Text(
             context.l10n.onlineBanner,
             style: TextStyle(
-              color:
-                  ThemeData.estimateBrightnessForColor(Colors.green) ==
-                      Brightness.dark
-                  ? Colors.white
-                  : Colors.black,
-              fontSize: (kTargetOsIsDesktop ? 6 : 13).sp,
+              color: Colors.white,
+              fontSize: (kIsDesktop ? 6 : 13).sp,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -101,41 +97,45 @@ class _OfflineBannerState extends State<OfflineBanner> {
       );
     }
 
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // Banner OFFLINE
     return AnimatedContainer(
       duration: kDefaultAppAnimationsDuration,
+      curve: Curves.easeInOut,
       width: 0.8.sw,
-      height: !widget.isOffline ? 0 : (kTargetOsIsDesktop ? 36 : 32).h,
+      height: widget.isOffline ? (kIsDesktop ? 38 : 32).h : 0,
       decoration: BoxDecoration(
-        color: !widget.isOffline
-            ? Colors.transparent
-            : colorScheme.errorContainer,
+        color: widget.isOffline
+            ? colorScheme.errorContainer
+            : Colors.transparent,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
       ),
-      child: !widget.isOffline
-          ? const SizedBox.shrink()
-          : Center(
+      child: widget.isOffline
+          ? Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Symbols.wifi_off_rounded,
                     color: colorScheme.onErrorContainer,
-                    size: (kTargetOsIsDesktop ? 8 : 18).sp,
+                    size: (kIsDesktop ? 8 : 18).sp,
                   ),
                   SizedBox(width: 8.w),
                   Text(
                     context.l10n.offlineBanner,
                     style: TextStyle(
                       color: colorScheme.onErrorContainer,
-                      fontSize: (kTargetOsIsDesktop ? 6 : 13).sp,
+                      fontSize: (kIsDesktop ? 6 : 13).sp,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   SizedBox(width: 8.w),
                   SizedBox.square(
-                    dimension: (kTargetOsIsDesktop ? 18 : 14).r,
+                    dimension: (kIsDesktop ? 18 : 14).r,
                     child: CircularProgressIndicator(
-                      strokeWidth: (kTargetOsIsDesktop ? 1 : 2).w,
+                      strokeWidth: (kIsDesktop ? 1 : 2).w,
                       valueColor: AlwaysStoppedAnimation<Color>(
                         colorScheme.onErrorContainer,
                       ),
@@ -143,7 +143,8 @@ class _OfflineBannerState extends State<OfflineBanner> {
                   ),
                 ],
               ),
-            ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

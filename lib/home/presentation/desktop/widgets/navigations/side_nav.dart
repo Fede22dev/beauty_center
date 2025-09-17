@@ -1,11 +1,10 @@
-import 'package:beauty_center/core/providers/app_route_ui_provider.dart';
 import 'package:beauty_center/home/presentation/desktop/widgets/navigations/toggle_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:sidebarx/sidebarx.dart';
 
 import '../../../../../core/constants/app_constants.dart';
-import '../../../../../core/router/app_routes.dart';
+import '../../../../../core/tabs/app_tabs.dart';
 import '../../../widgets/animated_rotation_icon.dart';
 
 class SideNav extends StatelessWidget {
@@ -31,7 +30,7 @@ class SideNav extends StatelessWidget {
         padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 1.w),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
-            AppRoute.values[selectedIndex].color.withValues(alpha: 0.1),
+            AppTabs.values[selectedIndex].color.withValues(alpha: 0.1),
             colorScheme.surfaceContainerHigh,
           ),
           borderRadius: BorderRadius.circular(18.r),
@@ -74,7 +73,7 @@ class SideNav extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         selectedTextStyle: TextStyle(
-          color: AppRoute.values[selectedIndex].color,
+          color: AppTabs.values[selectedIndex].color,
           fontSize: 7.sp,
           fontWeight: FontWeight.w600,
         ),
@@ -87,7 +86,7 @@ class SideNav extends StatelessWidget {
         padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 1.w),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
-            AppRoute.values[selectedIndex].color.withValues(alpha: 0.1),
+            AppTabs.values[selectedIndex].color.withValues(alpha: 0.1),
             colorScheme.surfaceContainerHigh,
           ),
           borderRadius: BorderRadius.circular(8.r),
@@ -123,7 +122,7 @@ class SideNav extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         selectedTextStyle: TextStyle(
-          color: AppRoute.values[selectedIndex].color,
+          color: AppTabs.values[selectedIndex].color,
           fontSize: 7.sp,
           fontWeight: FontWeight.w600,
         ),
@@ -131,7 +130,7 @@ class SideNav extends StatelessWidget {
         selectedItemTextPadding: EdgeInsets.only(left: 8.w),
       ),
       items: [
-        for (final tab in AppRoute.values)
+        for (final tab in AppTabs.values)
           SidebarXItem(
             label: tab.label(context),
             iconBuilder: (final selected, final hovered) => Center(

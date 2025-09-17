@@ -21,7 +21,7 @@ class ToggleButton extends StatefulWidget {
 }
 
 class _ToggleButtonState extends State<ToggleButton> {
-  bool _isHovered = false;
+  var _isHovered = false;
 
   @override
   Widget build(final BuildContext context) {

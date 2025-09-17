@@ -19,7 +19,7 @@ class _ClientsPageState extends State<ClientsPage>
     super.build(context); // Required when using AutomaticKeepAliveClientMixin.
     print('ClientsPage build');
     return ListView.builder(
-      key: const PageStorageKey('clients_list'), // Preserve scroll offset.
+      // Preserve scroll offset.
       controller: _scroll,
       itemCount: 100,
       itemBuilder: (_, final i) => ListTile(title: Text('Client #$i')),

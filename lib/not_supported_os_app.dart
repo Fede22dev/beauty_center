@@ -1,4 +1,4 @@
-import 'package:beauty_center/core/extensions/riverpod_l10n_extensions.dart';
+import 'package:beauty_center/core/extensions/l10n_extensions.dart';
 import 'package:beauty_center/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -20,26 +20,31 @@ class NotSupportedOsApp extends StatelessWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      home: Builder(
-        builder: (final context) {
-          final colorScheme = Theme.of(context).colorScheme;
-
-          return Scaffold(
-            backgroundColor: colorScheme.surface,
-            body: Center(
-              child: Text(
-                context.l10n.notSupportedOsMessage,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+      home: const _NotSupportedOsPage(),
     ),
   );
+}
+
+class _NotSupportedOsPage extends StatelessWidget {
+  const _NotSupportedOsPage();
+
+  @override
+  Widget build(final BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: Center(
+        child: Text(
+          context.l10n.notSupportedOsMessage,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
 }

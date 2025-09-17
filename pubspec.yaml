@@ -2,7 +2,7 @@
 name: beauty_center
 description: "Management app for beauty centers."
 publish_to: 'none'
-version: 0.1.1
+version: 0.1.2
 
 environment:
   sdk: '>=3.8.0 <4.0.0'
@@ -18,29 +18,32 @@ dependencies:
   intl: ^0.20.2
 
   # State management and routing
-  go_router: ^16.2.1
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: ^3.0.0
   #equatable: ^2.0.7
   #freezed_annotation
+
+  # Database
+  #drift: ^2.28.1
 
   # UI and theming
   flex_color_scheme: ^8.3.0
   flutter_screenutil: ^5.9.3
-  material_symbols_icons: ^4.2872.0
+  material_symbols_icons: ^4.2873.0
+  flex_color_picker: ^3.7.1
 
   # Navigation
   sidebarx: ^0.17.2
   google_nav_bar: ^5.0.7
 
   # Utils
-  connectivity_plus: ^6.1.5
+  connectivity_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
-  riverpod_lint: ^2.6.5
+  riverpod_lint: ^3.0.0
 
 flutter:
   uses-material-design: true

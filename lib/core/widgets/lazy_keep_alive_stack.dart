@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// A lazy, keep-alive host for tabbed UIs on wide layouts.
+/// A lazy, keep-alive host for tabbed UIs on wide layouts (Windows).
 /// - Builds a child only when its index is selected the first time (on-demand).
 /// - Caches built children and reuses them (state preserved).
 /// - Uses Offstage + TickerMode so only the selected one lays out/paints/animates.
@@ -21,71 +21,30 @@ class LazyKeepAliveStack extends StatefulWidget {
 }
 
 class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
-  late List<Widget?> _pageCache;
+  final Map<int, Widget> _cache = {};
+
+  Widget _buildOrGet(final int index) =>
+      _cache.putIfAbsent(index, () => widget.itemBuilder(context, index));
 
   @override
-  void initState() {
-    super.initState();
-    _pageCache = List<Widget?>.filled(widget.itemCount, null);
-  }
+  Widget build(final BuildContext context) => Stack(
+    children: List.generate(widget.itemCount, (final index) {
+      final isActive = index == widget.index;
 
-  @override
-  void didUpdateWidget(covariant final LazyKeepAliveStack oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.itemCount != oldWidget.itemCount) {
-      final newCache = List<Widget?>.filled(widget.itemCount, null);
-      final minLen = newCache.length < _pageCache.length
-          ? newCache.length
-          : _pageCache.length;
-
-      for (var i = 0; i < minLen; i++) {
-        newCache[i] = _pageCache[i];
+      if (!isActive && _cache[index] == null) {
+        return const SizedBox.shrink();
       }
 
-      _pageCache = newCache;
-    }
-  }
-
-  Widget _buildAndCacheItem(final int index) {
-    if (_pageCache[index] == null) {
-      _pageCache[index] = widget.itemBuilder(context, index);
-    }
-
-    return _pageCache[index]!;
-  }
-
-  @override
-  Widget build(final BuildContext context) {
-    final children = List<Widget>.generate(widget.itemCount, (final index) {
-      if (index == widget.index) {
-        // Build on first selection (lazy).
-        final child = _buildAndCacheItem(index);
-
-        return Offstage(
-          offstage: false,
-          child: TickerMode(
-            enabled: true,
-            child: KeyedSubtree(key: ValueKey('lazy_tab_$index'), child: child),
+      return Offstage(
+        offstage: !isActive,
+        child: TickerMode(
+          enabled: isActive,
+          child: KeyedSubtree(
+            key: ValueKey('lazy_tab_$index'),
+            child: _buildOrGet(index),
           ),
-        );
-      } else {
-        final cached = _pageCache[index];
-        if (cached == null) {
-          return const SizedBox.shrink();
-        }
-
-        return Offstage(
-          child: TickerMode(
-            enabled: false,
-            child: KeyedSubtree(
-              key: ValueKey('lazy_tab_$index'),
-              child: cached,
-            ),
-          ),
-        );
-      }
-    });
-
-    return Stack(children: children);
-  }
+        ),
+      );
+    }),
+  );
 }

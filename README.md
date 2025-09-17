@@ -1,6 +1,6 @@
 # 💅 Beauty Center
 
-> Cross-platform appointment manager for beauty and wellness centers — powered by Flutter & Dart.
+> Cross-platform app manager for beauty and wellness centers — powered by Flutter & Dart.
 
 ---
 
