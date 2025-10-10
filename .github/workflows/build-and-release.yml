@@ -84,7 +84,7 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Get dependencies & generate l10n & build APK
+      - name: Get dependencies & generate l10n & generate .g files & build APK
         run: |
           flutter pub get
           flutter gen-l10n
@@ -121,7 +121,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: 'pub'
 
-      - name: Enable Windows desktop & get dependencies & generate l10n & build
+      - name: Enable Windows desktop & get dependencies & generate l10n & generate .g files & build exe
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
@@ -308,7 +308,7 @@ jobs:
 
       - name: Build installer
         run: |
-          mkdir -p dist
+          New-Item -ItemType Directory -Path dist -Force
           iscc installer.iss
 
       - name: Upload Windows artifacts

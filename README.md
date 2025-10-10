@@ -45,13 +45,14 @@ The app follows **clean architecture** with **Riverpod for state management**:
 
 - **Core**: domain models, repositories, services
 - **Features**: modular UI screens & logic
-- **Data layer**: SQLite (local), Supabase (remote)
+- **Data layer**: SQLite (local), Supabase (remote), R2 (cloud storage)
 
 ---
 
 ## 🔮 Roadmap
 
-- [ ] ☁️ **Cloud Sync** via [Supabase](https://supabase.com)
+- [ ] ☁️ **Cloud Sync** database [Supabase](https://supabase.com) +
+  storage [Cloudflare R2](https://www.cloudflare.com/)
 - [ ] 🖥️ **Desktop builds** (Windows)
 - [ ] 📱 **Mobile builds** (Android)
 - [ ] 📊 **Client Analytics** & shop statistics
@@ -65,6 +66,7 @@ Clone the repo and fetch dependencies:
 ```bash
 git clone https://github.com/Fede22dev/beauty_center.git
 cd beauty_center
+
 flutter pub get
 
 flutter gen-l10n # To generate localization files
