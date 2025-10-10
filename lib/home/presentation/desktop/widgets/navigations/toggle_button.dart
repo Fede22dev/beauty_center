@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../../core/constants/app_constants.dart';
@@ -39,7 +38,7 @@ class _ToggleButtonState extends State<ToggleButton> {
           onTap: widget.onToggle,
           behavior: HitTestBehavior.opaque,
           child: SizedBox(
-            width: 1.sw,
+            width: double.infinity,
             child: Transform.rotate(
               angle: value * pi,
               child: Icon(
@@ -47,7 +46,7 @@ class _ToggleButtonState extends State<ToggleButton> {
                 color: _isHovered
                     ? colorScheme.primary
                     : colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                size: 18.sp,
+                size: 52,
                 weight: 500,
               ),
             ),

@@ -1,150 +1,150 @@
-import 'dart:async';
+import 'dart:ui';
 
-import 'package:beauty_center/core/extensions/l10n_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../connectivity/connectivity_repository.dart';
 import '../constants/app_constants.dart';
+import '../localizations/extensions/l10n_extensions.dart';
+import '../logging/app_logger.dart';
+import '../providers/offline_banner_provider.dart';
 
-/// Overlay that envelops the shelf and shows the offline banner at the top.
-class OfflineScaffoldOverlay extends StatelessWidget {
-  const OfflineScaffoldOverlay({required this.child, super.key});
+class OfflineBanner extends ConsumerStatefulWidget {
+  const OfflineBanner({required this.child, super.key});
 
   final Widget child;
 
   @override
-  Widget build(final BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: ConnectivityRepository.instance.isOfflineListenable,
-    builder: (final context, final offline, _) => Stack(
-      fit: StackFit.expand,
-      children: [
-        child,
-        Positioned(
-          top: 0,
-          left: 0.2.sw,
-          right: 0.2.sw,
-          child: OfflineBanner(isOffline: offline),
-        ),
-      ],
-    ),
-  );
+  ConsumerState<OfflineBanner> createState() => _OfflineBannerState();
 }
 
-/// Inline banner, for example inside a list of or page or app bar.
-class InlineConnectivityBanner extends StatelessWidget {
-  const InlineConnectivityBanner({super.key});
+class _OfflineBannerState extends ConsumerState<OfflineBanner> {
+  static final log = AppLogger.getLogger(name: 'OfflineBanner');
 
   @override
-  Widget build(final BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: ConnectivityRepository.instance.isOfflineListenable,
-    builder: (final context, final offline, _) =>
-        OfflineBanner(isOffline: offline),
-  );
-}
+  void initState() {
+    super.initState();
 
-class OfflineBanner extends StatefulWidget {
-  const OfflineBanner({required this.isOffline, super.key});
-
-  final bool isOffline;
-
-  @override
-  State<OfflineBanner> createState() => _OfflineBannerState();
-}
-
-class _OfflineBannerState extends State<OfflineBanner> {
-  var _showOnlineBanner = false;
-  var _initialized = false;
-
-  @override
-  void didUpdateWidget(covariant final OfflineBanner oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (_initialized && oldWidget.isOffline && !widget.isOffline) {
-      setState(() => _showOnlineBanner = true);
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _showOnlineBanner = false);
+    final isOffline = ConnectivityRepository.instance.isOfflineListenable.value;
+    log.fine('Connectivity init check. isOffline: $isOffline');
+    if (isOffline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(offlineBannerProvider.notifier).toggle(isOffline: isOffline);
       });
-    } else {
-      _initialized = true;
     }
+
+    ConnectivityRepository.instance.isOfflineListenable.addListener(
+      _updateBanner,
+    );
+  }
+
+  @override
+  void dispose() {
+    ConnectivityRepository.instance.isOfflineListenable.removeListener(
+      _updateBanner,
+    );
+    super.dispose();
+  }
+
+  void _updateBanner() {
+    final isOffline = ConnectivityRepository.instance.isOfflineListenable.value;
+    log.fine('Connectivity changed. isOffline: $isOffline');
+    ref.read(offlineBannerProvider.notifier).toggle(isOffline: isOffline);
   }
 
   @override
   Widget build(final BuildContext context) {
-    // Banner ONLINE
-    if (_showOnlineBanner) {
-      return AnimatedContainer(
-        duration: kDefaultAppAnimationsDuration,
-        curve: Curves.easeInOut,
-        height: (kIsDesktop ? 38 : 32).h,
-        width: 0.8.sw,
-        decoration: BoxDecoration(
-          color: Colors.green,
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
-        ),
-        child: Center(
-          child: Text(
-            context.l10n.onlineBanner,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: (kIsDesktop ? 6 : 13).sp,
-              fontWeight: FontWeight.w700,
+    final bannerState = ref.watch(offlineBannerProvider);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        Positioned(
+          top: 0,
+          left: kIsWindows ? 400 : 0.2.sw,
+          right: kIsWindows ? 350 : 0.2.sw,
+          child: SizedBox(
+            height: bannerState.isVisible ? kDefaultAppBannerOfflineHeight : 0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(kIsWindows ? 12 : 8.r),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                child: AnimatedContainer(
+                  duration: kDefaultAppAnimationsDuration,
+                  height: bannerState.isVisible
+                      ? kDefaultAppBannerOfflineHeight
+                      : 0,
+                  curve: Curves.easeInOut,
+                  decoration: BoxDecoration(
+                    color: bannerState.isOffline
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.errorContainer.withValues(alpha: 0.75)
+                        : (bannerState.isOnline
+                              ? Colors.green.withValues(alpha: 0.75)
+                              : Colors.transparent),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(kIsWindows ? 12 : 8.r),
+                    ),
+                  ),
+                  child: bannerState.isVisible
+                      ? Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (bannerState.isOffline)
+                                Icon(
+                                  Symbols.wifi_off_rounded,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
+                                  size: kIsWindows ? 24 : 18.sp,
+                                ),
+                              if (bannerState.isOffline)
+                                SizedBox(width: kIsWindows ? 8 : 8.w),
+                              Text(
+                                bannerState.isOffline
+                                    ? context.l10n.offlineBanner
+                                    : context.l10n.onlineBanner,
+                                style: TextStyle(
+                                  color: bannerState.isOffline
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.onErrorContainer
+                                      : Colors.white,
+                                  fontSize: kIsWindows ? 16 : 13.sp,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (bannerState.isOffline)
+                                SizedBox(width: kIsWindows ? 8 : 8.w),
+                              if (bannerState.isOffline)
+                                SizedBox.square(
+                                  dimension: kIsWindows ? 18 : 14.r,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: kIsWindows ? 3 : 2.w,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      Theme.of(
+                                        context,
+                                      ).colorScheme.onErrorContainer,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
             ),
           ),
         ),
-      );
-    }
-
-    final colorScheme = Theme.of(context).colorScheme;
-
-    // Banner OFFLINE
-    return AnimatedContainer(
-      duration: kDefaultAppAnimationsDuration,
-      curve: Curves.easeInOut,
-      width: 0.8.sw,
-      height: widget.isOffline ? (kIsDesktop ? 38 : 32).h : 0,
-      decoration: BoxDecoration(
-        color: widget.isOffline
-            ? colorScheme.errorContainer
-            : Colors.transparent,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(8.r)),
-      ),
-      child: widget.isOffline
-          ? Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Symbols.wifi_off_rounded,
-                    color: colorScheme.onErrorContainer,
-                    size: (kIsDesktop ? 8 : 18).sp,
-                  ),
-                  SizedBox(width: 8.w),
-                  Text(
-                    context.l10n.offlineBanner,
-                    style: TextStyle(
-                      color: colorScheme.onErrorContainer,
-                      fontSize: (kIsDesktop ? 6 : 13).sp,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  SizedBox(width: 8.w),
-                  SizedBox.square(
-                    dimension: (kIsDesktop ? 18 : 14).r,
-                    child: CircularProgressIndicator(
-                      strokeWidth: (kIsDesktop ? 1 : 2).w,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        colorScheme.onErrorContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : const SizedBox.shrink(),
+      ],
     );
   }
 }

@@ -137,6 +137,13 @@ if ($LASTEXITCODE -ne 0)
     throw "Flutter pub get failed!"
 }
 
+Write-Host "  - Generate files..." -ForegroundColor Gray
+& $FLUTTER pub run build_runner build --delete-conflicting-outputs
+if ($LASTEXITCODE -ne 0)
+{
+    throw "Flutter pub generation files failed!"
+}
+
 # Check if l10n is configured
 $hasL10n = $pubspec -match 'generate:\s*true' -or (Test-Path "lib/l10n")
 if ($hasL10n)

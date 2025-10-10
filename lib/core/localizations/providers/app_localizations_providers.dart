@@ -2,7 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../l10n/app_localizations.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// System locale provider - automatically detects and provides system locale
 final systemLocaleProvider = Provider<Locale>(

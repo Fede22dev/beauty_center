@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.35.3'
+  FLUTTER_VERSION: '3.35.6'
   JAVA_VERSION: '17'
 
 jobs:
@@ -88,6 +88,7 @@ jobs:
         run: |
           flutter pub get
           flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
           flutter build apk --release
 
       - name: Rename APK and move to dist dir
@@ -125,6 +126,7 @@ jobs:
           flutter config --enable-windows-desktop
           flutter pub get
           flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
           flutter build windows --release
 
       - name: Setup Inno Setup

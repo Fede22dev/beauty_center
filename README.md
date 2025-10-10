@@ -69,6 +69,8 @@ flutter pub get
 
 flutter gen-l10n # To generate localization files
 
+dart run build_runner build --delete-conflicting-outputs
+
 flutter run
 
 flutter run -d windows

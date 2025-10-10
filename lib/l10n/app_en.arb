@@ -3,9 +3,41 @@
   "notSupportedOsMessage": "This application is not supported on your device!\nOnly Windows and Android are supported.",
   "onlineBanner": "You are online!",
   "offlineBanner": "You are currently offline!",
+  "syncAllCloudData": "Sync all cloud data",
   "appointments": "Appointments",
   "clients": "Clients",
   "treatments": "Treatments",
   "statistics": "Statistics",
-  "settings": "Settings"
+  "settings": "Settings",
+  "errorFetchDataDb": "Data loading error",
+  "retry": "Retry",
+  "cabins": "Cabins",
+  "number": "Number:",
+  "tapToChangeColor": "Tap to change color",
+  "cabinColor": "Color {number}",
+  "@cabinColor": {
+    "description": "Label for the color of a cabin, includes its display number",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "cancel": "Cancel",
+  "submit": "Submit",
+  "operators": "Operators",
+  "name": "Name",
+  "workHours": "Work hours",
+  "start": "Start",
+  "end": "End",
+  "workDayDuration": "Workday duration: {hours}h {minutes}min",
+  "@workDayDuration": {
+    "description": "Shows the workday duration in hours and minutes",
+    "placeholders": {
+      "hours": {},
+      "minutes": {}
+    }
+  },
+  "rangeStartWorkHours": "Start time must be between 06:00 and 12:00",
+  "rangeEndWorkHours": "End time must be between 14:00 and 22:00"
 }

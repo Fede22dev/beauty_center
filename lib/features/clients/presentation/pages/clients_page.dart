@@ -1,28 +1,108 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class ClientsPage extends StatefulWidget {
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/logging/app_logger.dart';
+import '../../../../core/providers/offline_banner_provider.dart';
+import '../../../../core/widgets/offline_banner.dart';
+
+class ClientsPage extends ConsumerStatefulWidget {
   const ClientsPage({super.key});
 
   @override
-  State<ClientsPage> createState() => _ClientsPageState();
+  ConsumerState<ClientsPage> createState() => _ClientsPageState();
 }
 
-class _ClientsPageState extends State<ClientsPage>
+class _ClientsPageState extends ConsumerState<ClientsPage>
     with AutomaticKeepAliveClientMixin {
-  final ScrollController _scroll = ScrollController();
+  @override
+  bool get wantKeepAlive => true;
+
+  static final log = AppLogger.getLogger(name: 'ClientsPage');
+
+  late final ScrollController _scrollController;
+  late final double _scrollbarThickness;
+  var _isScrollbarNeeded = false;
 
   @override
-  bool get wantKeepAlive => true; // Keep this page alive.
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollbarThickness = kIsWindows ? 8.0 : 0.0;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(final BuildContext context) {
-    super.build(context); // Required when using AutomaticKeepAliveClientMixin.
-    print('ClientsPage build');
-    return ListView.builder(
-      // Preserve scroll offset.
-      controller: _scroll,
-      itemCount: 100,
-      itemBuilder: (_, final i) => ListTile(title: Text('Client #$i')),
+    super.build(context);
+    final bannerState = ref.watch(offlineBannerProvider);
+
+    if (_scrollbarThickness > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final isNeeded =
+            _scrollController.hasClients &&
+            _scrollController.position.maxScrollExtent > 0;
+        if (isNeeded != _isScrollbarNeeded && mounted) {
+          setState(() => _isScrollbarNeeded = isNeeded);
+        }
+      });
+    }
+
+    log.info('build');
+
+    return OfflineBanner(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
+        child: Scrollbar(
+          controller: _scrollController,
+          thickness: _scrollbarThickness,
+          thumbVisibility: kIsWindows,
+          interactive: kIsWindows,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: AnimatedPadding(
+              duration: kDefaultAppAnimationsDuration,
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.fromLTRB(
+                kIsWindows ? 16 : 8.w,
+                0,
+                (kIsWindows ? 16 : 8.w) +
+                    (_isScrollbarNeeded ? _scrollbarThickness : 0),
+                0,
+              ),
+              child: Column(
+                children: [
+                  AnimatedSize(
+                    duration: kDefaultAppAnimationsDuration,
+                    curve: Curves.easeInOut,
+                    child: SizedBox(
+                      height: bannerState.isVisible
+                          ? kDefaultAppBannerOfflineHeight
+                          : 0,
+                    ),
+                  ),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: 100,
+                    itemBuilder: (_, final i) =>
+                        ListTile(title: Text('Client #$i')),
+                  ),
+                  SizedBox(
+                    height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:beauty_center/home/presentation/desktop/widgets/navigations/toggle_button.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:sidebarx/sidebarx.dart';
 
 import '../../../../../core/constants/app_constants.dart';
@@ -25,109 +24,101 @@ class SideNav extends StatelessWidget {
       controller: controller,
       animationDuration: kDefaultAppAnimationsDuration,
       theme: SidebarXTheme(
-        width: 27.w,
-        margin: EdgeInsets.fromLTRB(2.w, 20.h, 2.w, 20.h),
-        padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 1.w),
+        width: 100,
+        margin: const EdgeInsets.fromLTRB(4, 20, 4, 20),
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
             AppTabs.values[selectedIndex].color.withValues(alpha: 0.1),
             colorScheme.surfaceContainerHigh,
           ),
-          borderRadius: BorderRadius.circular(18.r),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: colorScheme.outlineVariant.withValues(alpha: 0.4),
           ),
         ),
-        itemPadding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 4.w),
-        itemDecoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14.r),
-        ),
+        itemPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 4),
+        itemDecoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
         hoverColor: colorScheme.primary.withValues(alpha: 0.12),
-        selectedItemPadding: EdgeInsets.symmetric(
-          vertical: 20.h,
-          horizontal: 4.w,
+        selectedItemPadding: const EdgeInsets.symmetric(
+          vertical: 20,
+          horizontal: 4,
         ),
         selectedItemDecoration: BoxDecoration(
           color: colorScheme.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(14.r),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.4),
-            width: 0.7.w,
-          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.4)),
           boxShadow: [
             BoxShadow(
               color: colorScheme.primary.withValues(alpha: 0.04),
-              blurRadius: 20.r,
+              blurRadius: 20,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         textStyle: TextStyle(
           color: colorScheme.onSurfaceVariant,
-          fontSize: 7.sp,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
         hoverTextStyle: TextStyle(
           color: colorScheme.onSurface.withValues(alpha: 0.85),
-          fontSize: 7.sp,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
         selectedTextStyle: TextStyle(
           color: AppTabs.values[selectedIndex].color,
-          fontSize: 7.sp,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
-        itemTextPadding: EdgeInsets.only(left: 8.w),
-        selectedItemTextPadding: EdgeInsets.only(left: 8.w),
+        itemTextPadding: const EdgeInsets.only(left: 8),
+        selectedItemTextPadding: const EdgeInsets.only(left: 8),
       ),
       extendedTheme: SidebarXTheme(
-        width: 82.w,
-        margin: EdgeInsets.fromLTRB(1.w, 4.h, 1.w, 4.h),
-        padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 1.w),
+        width: 185,
+        margin: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
             AppTabs.values[selectedIndex].color.withValues(alpha: 0.1),
             colorScheme.surfaceContainerHigh,
           ),
-          borderRadius: BorderRadius.circular(8.r),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: colorScheme.outlineVariant.withValues(alpha: 0.4),
           ),
         ),
-        itemDecoration: BoxDecoration(borderRadius: BorderRadius.circular(6.r)),
+        itemDecoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
         hoverColor: colorScheme.primary.withValues(alpha: 0.12),
         selectedItemDecoration: BoxDecoration(
           color: colorScheme.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6.r),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.4),
-            width: 0.7.w,
-          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.4)),
           boxShadow: [
             BoxShadow(
               color: colorScheme.primary.withValues(alpha: 0.04),
-              blurRadius: 20.r,
+              blurRadius: 20,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         textStyle: TextStyle(
           color: colorScheme.onSurfaceVariant,
-          fontSize: 7.sp,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
         hoverTextStyle: TextStyle(
           color: colorScheme.onSurface.withValues(alpha: 0.85),
-          fontSize: 7.sp,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
         selectedTextStyle: TextStyle(
           color: AppTabs.values[selectedIndex].color,
-          fontSize: 7.sp,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
-        itemTextPadding: EdgeInsets.only(left: 8.w),
-        selectedItemTextPadding: EdgeInsets.only(left: 8.w),
+        itemTextPadding: const EdgeInsets.only(left: 8),
+        selectedItemTextPadding: const EdgeInsets.only(left: 8),
       ),
       items: [
         for (final tab in AppTabs.values)
@@ -144,13 +135,13 @@ class SideNav extends StatelessWidget {
                               alpha: 0.9,
                             )),
                 isSelected: selected,
-                size: 12.sp,
+                size: 42,
               ),
             ),
           ),
       ],
       footerDivider: Divider(
-        height: 1.h,
+        height: 2,
         color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
       ),
       toggleButtonBuilder: (final context, final extended) => ToggleButton(

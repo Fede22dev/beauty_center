@@ -13,11 +13,11 @@ class BeautyCenterApp extends StatelessWidget {
 
   @override
   Widget build(final BuildContext context) => ScreenUtilInit(
-    designSize: const Size(390, 844), // Medium phone baseline
+    designSize: const Size(384, 832), // Android S25 plus
     minTextAdapt: true,
     splitScreenMode: true,
     builder: (_, _) {
-      if (!kIsDesktop) {
+      if (!kIsWindows) {
         SystemChrome.setPreferredOrientations([
           DeviceOrientation.portraitUp,
           DeviceOrientation.portraitDown,
@@ -31,7 +31,7 @@ class BeautyCenterApp extends StatelessWidget {
         supportedLocales: AppLocalizations.supportedLocales,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
-        home: kIsDesktop ? const HomePageDesktop() : const HomePageMobile(),
+        home: kIsWindows ? const HomePageDesktop() : const HomePageMobile(),
         builder: (final context, final child) => MediaQuery(
           data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
           child: child!,

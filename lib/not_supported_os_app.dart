@@ -1,4 +1,5 @@
-import 'package:beauty_center/core/extensions/l10n_extensions.dart';
+import 'package:beauty_center/core/constants/app_constants.dart';
+import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
 import 'package:beauty_center/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -10,7 +11,7 @@ class NotSupportedOsApp extends StatelessWidget {
 
   @override
   Widget build(final BuildContext context) => ScreenUtilInit(
-    designSize: const Size(390, 844), // Medium phone baseline
+    designSize: const Size(384, 832), // Android S25 plus
     minTextAdapt: true,
     splitScreenMode: true,
     builder: (_, _) => MaterialApp(
@@ -39,7 +40,7 @@ class _NotSupportedOsPage extends StatelessWidget {
           context.l10n.notSupportedOsMessage,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: kIsWindows ? 20 : 18.sp,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
           ),

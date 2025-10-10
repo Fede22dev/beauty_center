@@ -1,4 +1,4 @@
-import 'package:beauty_center/core/extensions/l10n_extensions.dart';
+import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
