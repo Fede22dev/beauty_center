@@ -1,6 +1,7 @@
 # 💅 Beauty Center
 
-> Cross-platform app manager for beauty and wellness centers — powered by Flutter & Dart.
+> Cross-platform (Windows & Android) app manager for beauty and wellness centers — powered by
+> Flutter & Dart.
 
 ---
 
@@ -26,11 +27,12 @@
 
 ## ✨ What is Beauty Center?
 
-**Beauty Center** is a sleek and modular **cross-platform app** built in **Flutter**.  
+**Beauty Center** is a sleek and modular **cross-platform app (Windows & Android)** built in *
+*Flutter**.  
 It helps beauty and wellness centers manage:
 
-- 🧍‍♀️ Clients
 - 📅 Appointments
+- 🧍‍♀️ Clients
 - 💆‍♀️ Treatments
 - 📊 Statistics
 - ⚙️ Settings
@@ -45,17 +47,7 @@ The app follows **clean architecture** with **Riverpod for state management**:
 
 - **Core**: domain models, repositories, services
 - **Features**: modular UI screens & logic
-- **Data layer**: SQLite (local), Supabase (remote), R2 (cloud storage)
-
----
-
-## 🔮 Roadmap
-
-- [ ] ☁️ **Cloud Sync** database [Supabase](https://supabase.com) +
-  storage [Cloudflare R2](https://www.cloudflare.com/)
-- [ ] 🖥️ **Desktop builds** (Windows)
-- [ ] 📱 **Mobile builds** (Android)
-- [ ] 📊 **Client Analytics** & shop statistics
+- **Data layer**: SQLite Drift (local), Supabase (remote), R2 (cloud storage)
 
 ---
 
@@ -72,6 +64,10 @@ flutter pub get
 flutter gen-l10n # To generate localization files
 
 dart run build_runner build --delete-conflicting-outputs
+
+dart run flutter_launcher_icons
+
+dart run flutter_native_splash:create
 
 flutter run
 

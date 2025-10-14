@@ -31,13 +31,13 @@ class ErrorView extends StatelessWidget {
             ),
             SizedBox(height: kIsWindows ? 16 : 16.h),
             Text(
-              context.l10n.errorFetchDataDb,
-              style: Theme.of(context).textTheme.titleLarge,
+              context.l10n.error,
+              style: TextStyle(fontSize: kIsWindows ? 24 : 24.sp),
             ),
             SizedBox(height: kIsWindows ? 8 : 8.h),
             Text(
               error,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: TextStyle(fontSize: kIsWindows ? 16 : 16.sp),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: kIsWindows ? 24 : 24.h),

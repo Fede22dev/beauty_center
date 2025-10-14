@@ -42,5 +42,5 @@ const kIdWorkHours = 1;
 const kDefaultWorkHourStart = TimeOfDay(hour: 9, minute: 0);
 const kDefaultWorkHourEnd = TimeOfDay(hour: 18, minute: 0);
 
-// Default sync interval for offline/cloud data
-const kSyncEveryTime = Duration(seconds: 5);
+const kSupabaseUrlKeySecureStorageKey = 'supabase_url';
+const kSupabaseAnonKeySecureStorageKey = 'supabase_anonkey';

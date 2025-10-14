@@ -84,11 +84,13 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Get dependencies & generate l10n & generate .g files & build APK
+      - name: Get dependencies & generate l10n & generate .g files & generate launcher icon & generate splash screen & build APK
         run: |
           flutter pub get
           flutter gen-l10n
           dart run build_runner build --delete-conflicting-outputs
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
           flutter build apk --release
 
       - name: Rename APK and move to dist dir
@@ -121,12 +123,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: 'pub'
 
-      - name: Enable Windows desktop & get dependencies & generate l10n & generate .g files & build exe
+      - name: Enable Windows desktop & get dependencies & generate l10n & generate .g files & generate launcher icon & generate splash screen & build exe
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
           flutter gen-l10n
           dart run build_runner build --delete-conflicting-outputs
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
           flutter build windows --release
 
       - name: Setup Inno Setup

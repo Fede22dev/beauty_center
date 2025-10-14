@@ -52,16 +52,6 @@ final operatorsCountProvider = FutureProvider<int>(
   (final ref) => ref.watch(settingsRepositoryProvider).getOperatorsCount(),
 );
 
-/// Check if there's unsynced data
-final hasUnsyncedDataProvider = FutureProvider<bool>(
-  (final ref) => ref.watch(settingsRepositoryProvider).hasUnsyncedData(),
-);
-
-/// Get unsynced data summary (for sync status indicator)
-final unsyncedSummaryProvider = FutureProvider<Map<String, dynamic>>(
-  (final ref) => ref.watch(settingsRepositoryProvider).getUnsyncedSummary(),
-);
-
 // ========================================================================
 
 // ACTIONS PROVIDER
@@ -144,18 +134,5 @@ class SettingsActions {
     required final TimeOfDay endTime,
   }) async {
     await _repo.updateWorkHours(startTime: startTime, endTime: endTime);
-  }
-
-  // ========================================================================
-
-  // SYNC ACTIONS
-  /// Mark all data as synced
-  Future<void> markAllAsSynced() async {
-    await _repo.markAllAsSynced();
-
-    // Refresh sync status
-    _ref
-      ..invalidate(hasUnsyncedDataProvider)
-      ..invalidate(unsyncedSummaryProvider);
   }
 }

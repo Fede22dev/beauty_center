@@ -25,6 +25,4 @@ extension WorkHoursExtension on WorkHours {
     final end = endHr * 60 + endMin;
     return end - start;
   }
-
-  bool get needsSync => lastSyncedAt == null || updatedAt > lastSyncedAt!;
 }

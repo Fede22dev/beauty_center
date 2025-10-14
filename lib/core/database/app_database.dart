@@ -22,13 +22,6 @@ class CabinsTable extends Table {
   // Data
   IntColumn get color => integer()(); // ARGB32 format
 
-  // Timestamps
-  IntColumn get updatedAt => integer().clientDefault(
-    () => DateTime.now().millisecondsSinceEpoch ~/ 1000,
-  )();
-
-  IntColumn get lastSyncedAt => integer().nullable()();
-
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -47,13 +40,6 @@ class OperatorsTable extends Table {
     max: kMaxOperatorsNameLength,
   )();
 
-  // Timestamps
-  IntColumn get updatedAt => integer().clientDefault(
-    () => DateTime.now().millisecondsSinceEpoch ~/ 1000,
-  )();
-
-  IntColumn get lastSyncedAt => integer().nullable()();
-
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -65,20 +51,14 @@ class WorkHoursTable extends Table {
 
   // Opening time
   IntColumn get startHr => integer()();
-
   IntColumn get startMin => integer()();
 
   // Closing time
   IntColumn get endHr => integer()();
-
   IntColumn get endMin => integer()();
 
-  // Tracking
-  IntColumn get updatedAt => integer().clientDefault(
-    () => DateTime.now().millisecondsSinceEpoch ~/ 1000,
-  )();
-
-  IntColumn get lastSyncedAt => integer().nullable()();
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 // DATABASE
@@ -179,7 +159,7 @@ class AppDatabase extends _$AppDatabase {
     // Default work hours data
     await into(workHoursTable).insert(
       WorkHoursTableCompanion.insert(
-        id: kIdWorkHours,
+        id: const Value(kIdWorkHours),
         startHr: kDefaultWorkHourStart.hour,
         startMin: kDefaultWorkHourStart.minute,
         endHr: kDefaultWorkHourEnd.hour,

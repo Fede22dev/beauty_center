@@ -4,8 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/logging/app_logger.dart';
-import '../../../../core/providers/offline_banner_provider.dart';
-import '../../../../core/widgets/offline_banner.dart';
 
 class StatisticsPage extends ConsumerStatefulWidget {
   const StatisticsPage({super.key});
@@ -41,7 +39,6 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage>
   @override
   Widget build(final BuildContext context) {
     super.build(context);
-    final bannerState = ref.watch(offlineBannerProvider);
 
     if (_scrollbarThickness > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,47 +53,37 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage>
 
     log.info('build');
 
-    return OfflineBanner(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
-        child: Scrollbar(
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
+      child: Scrollbar(
+        controller: _scrollController,
+        thickness: _scrollbarThickness,
+        thumbVisibility: kIsWindows,
+        interactive: kIsWindows,
+        child: SingleChildScrollView(
           controller: _scrollController,
-          thickness: _scrollbarThickness,
-          thumbVisibility: kIsWindows,
-          interactive: kIsWindows,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: AnimatedPadding(
-              duration: kDefaultAppAnimationsDuration,
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.fromLTRB(
-                kIsWindows ? 16 : 8.w,
-                0,
-                (kIsWindows ? 16 : 8.w) +
-                    (_isScrollbarNeeded ? _scrollbarThickness : 0),
-                0,
-              ),
-              child: Column(
-                children: [
-                  AnimatedSize(
-                    duration: kDefaultAppAnimationsDuration,
-                    curve: Curves.easeInOut,
-                    child: SizedBox(
-                      height: bannerState.isVisible
-                          ? kDefaultAppBannerOfflineHeight
-                          : 0,
-                    ),
-                  ),
-                  const Center(child: Text('Statistics1')),
-                  SizedBox(height: kIsWindows ? 8 : 8.h),
-                  const Center(child: Text('Statistics2')),
-                  SizedBox(height: kIsWindows ? 8 : 8.h),
-                  const Center(child: Text('Statistics3')),
-                  SizedBox(
-                    height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
-                  ),
-                ],
-              ),
+          child: AnimatedPadding(
+            duration: kDefaultAppAnimationsDuration,
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.fromLTRB(
+              kIsWindows ? 16 : 8.w,
+              0,
+              (kIsWindows ? 16 : 8.w) +
+                  (_isScrollbarNeeded ? _scrollbarThickness : 0),
+              0,
+            ),
+            child: Column(
+              children: [
+                SizedBox(height: kIsWindows ? 8 : 8.h),
+                const Center(child: Text('Statistics1')),
+                SizedBox(height: kIsWindows ? 8 : 8.h),
+                const Center(child: Text('Statistics2')),
+                SizedBox(height: kIsWindows ? 8 : 8.h),
+                const Center(child: Text('Statistics3')),
+                SizedBox(
+                  height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
+                ),
+              ],
             ),
           ),
         ),

@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/logging/app_logger.dart';
-import '../../../../core/providers/offline_banner_provider.dart';
 import '../../../../core/widgets/error_view.dart';
-import '../../../../core/widgets/offline_banner.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/sections/settings_cabins.dart';
 import '../widgets/sections/settings_operators.dart';
@@ -46,7 +44,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   @override
   Widget build(final BuildContext context) {
     super.build(context);
-    final bannerState = ref.watch(offlineBannerProvider);
 
     final cabinsAsync = ref.watch(cabinsStreamProvider);
     final operatorsAsync = ref.watch(operatorsStreamProvider);
@@ -93,47 +90,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
     log.fine('build');
 
-    return OfflineBanner(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
-        child: Scrollbar(
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
+      child: Scrollbar(
+        controller: _scrollController,
+        thickness: _scrollbarThickness,
+        thumbVisibility: kIsWindows,
+        interactive: kIsWindows,
+        child: SingleChildScrollView(
           controller: _scrollController,
-          thickness: _scrollbarThickness,
-          thumbVisibility: kIsWindows,
-          interactive: kIsWindows,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: AnimatedPadding(
-              duration: kDefaultAppAnimationsDuration,
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.fromLTRB(
-                kIsWindows ? 16 : 8.w,
-                0,
-                (kIsWindows ? 16 : 8.w) +
-                    (_isScrollbarNeeded ? _scrollbarThickness : 0),
-                0,
-              ),
-              child: Column(
-                children: [
-                  AnimatedSize(
-                    duration: kDefaultAppAnimationsDuration,
-                    curve: Curves.easeInOut,
-                    child: SizedBox(
-                      height: bannerState.isVisible
-                          ? kDefaultAppBannerOfflineHeight
-                          : 0,
-                    ),
-                  ),
-                  CabinsSection(cabins: cabins),
-                  SizedBox(height: kIsWindows ? 8 : 8.h),
-                  OperatorsSection(operators: operators),
-                  SizedBox(height: kIsWindows ? 8 : 8.h),
-                  WorkHoursSection(workHours: workHours),
-                  SizedBox(
-                    height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
-                  ),
-                ],
-              ),
+          child: AnimatedPadding(
+            duration: kDefaultAppAnimationsDuration,
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.fromLTRB(
+              kIsWindows ? 16 : 8.w,
+              0,
+              (kIsWindows ? 16 : 8.w) +
+                  (_isScrollbarNeeded ? _scrollbarThickness : 0),
+              0,
+            ),
+            child: Column(
+              children: [
+                SizedBox(height: kIsWindows ? 8 : 8.h),
+                CabinsSection(cabins: cabins),
+                SizedBox(height: kIsWindows ? 8 : 8.h),
+                OperatorsSection(operators: operators),
+                SizedBox(height: kIsWindows ? 8 : 8.h),
+                WorkHoursSection(workHours: workHours),
+                SizedBox(
+                  height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
+                ),
+              ],
             ),
           ),
         ),

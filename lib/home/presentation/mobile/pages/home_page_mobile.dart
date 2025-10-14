@@ -1,12 +1,14 @@
-import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
+import 'package:beauty_center/core/widgets/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../core/connectivity/connectivity_provider.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/logging/app_logger.dart';
+import '../../../../core/supabase/supabase_auth_provider.dart';
 import '../../../../core/tabs/app_tabs.dart';
+import '../../../../core/widgets/supabase_login_dialog.dart';
 import '../../../providers/home_tab_provider.dart';
 import '../widgets/navigations/bottom_nav.dart';
 
@@ -23,7 +25,9 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   late final ScrollController _navScrollController;
   late final List<Widget> _pages;
 
-  static final log = AppLogger.getLogger(name: 'HomeMobile');
+  var _isDialogLoginSupabase = false;
+
+  //static final log = AppLogger.getLogger(name: 'HomeMobile');
 
   @override
   void initState() {
@@ -69,10 +73,6 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     );
   }
 
-  void _syncAllCloudData() {
-    log.fine('Sync all cloud data');
-  }
-
   PreferredSizeWidget _buildAppBar(final ColorScheme colorScheme) {
     final currentTabColor =
         AppTabs.values[ref.read(homeTabProvider).index].color;
@@ -98,7 +98,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16.w, 0, 0, 0),
+            padding: EdgeInsets.only(left: 16.w),
             child: Row(
               children: [
                 Expanded(
@@ -111,74 +111,85 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
                     ),
                   ),
                 ),
-                PopupMenuButton<String>(
-                  elevation: 9,
-                  icon: Icon(
-                    Symbols.more_vert,
-                    size: 20.sp,
-                    opticalSize: 32.sp,
-                    weight: 700,
-                    color: colorScheme.onSurface,
-                  ),
-                  offset: Offset(-8.w, (kToolbarHeight / 2 + 5.sp).h),
-                  shadowColor: currentTabColor.withValues(alpha: 0.2),
-                  color: colorScheme.surfaceContainerHighest,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.r),
-                    side: BorderSide(
-                      color: currentTabColor.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  splashRadius: 20.r,
-                  itemBuilder: (final context) => [
-                    PopupMenuItem<String>(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12.r),
-                        splashColor: currentTabColor.withValues(alpha: 0.1),
-                        highlightColor: currentTabColor.withValues(alpha: 0.05),
-                        hoverColor: currentTabColor.withValues(alpha: 0.05),
-                        focusColor: currentTabColor.withValues(alpha: 0.05),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          _syncAllCloudData();
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8.w,
-                            vertical: 6.h,
+                Consumer(
+                  builder: (final context, final ref, _) {
+                    final isOffline = ref.watch(isOfflineProvider);
+
+                    if (!isOffline) return const SizedBox.shrink();
+
+                    return StatefulBuilder(
+                      builder: (final context, final setState) {
+                        final controller = AnimationController(
+                          vsync: Navigator.of(context),
+                          duration: const Duration(seconds: 1),
+                        )..repeat(reverse: true);
+
+                        return FadeTransition(
+                          opacity: controller,
+                          child: Icon(
+                            Icons.cloud_off_rounded,
+                            color: Colors.red,
+                            size: 24.sp,
+                            weight: 600,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: EdgeInsets.all(6.w),
-                                decoration: BoxDecoration(
-                                  color: currentTabColor.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  borderRadius: BorderRadius.circular(10.r),
-                                ),
-                                child: Icon(
-                                  Symbols.cloud_sync_rounded,
-                                  size: 20.sp,
-                                  color: currentTabColor,
-                                ),
-                              ),
-                              SizedBox(width: 12.w),
-                              Text(
-                                context.l10n.syncAllCloudData,
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w500,
-                                  color: colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                SizedBox(width: kIsWindows ? 8 : 8.w),
+                Consumer(
+                  builder: (final context, final ref, _) {
+                    final state = ref.watch(supabaseAuthProvider);
+
+                    WidgetsBinding.instance.addPostFrameCallback((_) async {
+                      if (!state.isInitializing &&
+                          state.isDisconnected &&
+                          context.mounted &&
+                          !_isDialogLoginSupabase) {
+                        _isDialogLoginSupabase = true;
+
+                        await showDialog<void>(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const SupabaseLoginDialog(),
+                        );
+
+                        _isDialogLoginSupabase = false;
+                      }
+
+                      if (state.errorMessage != null && context.mounted) {
+                        showCustomSnackBar(
+                          context: context,
+                          message: state.errorMessage!,
+                          okColor: colorScheme.primary,
+                        );
+                      }
+                    });
+
+                    return IconButton(
+                      icon: Icon(
+                        Symbols.account_circle,
+                        color: state.isConnected
+                            ? Colors.green
+                            : state.isConnecting
+                            ? Colors.amber
+                            : Colors.grey,
+                        size: 24.sp,
+                        weight: 600,
                       ),
-                    ),
-                  ],
+                      onPressed: () async {
+                        _isDialogLoginSupabase = true;
+
+                        await showDialog<void>(
+                          context: context,
+                          builder: (_) => const SupabaseLoginDialog(),
+                        );
+
+                        _isDialogLoginSupabase = true;
+                      },
+                    );
+                  },
                 ),
               ],
             ),

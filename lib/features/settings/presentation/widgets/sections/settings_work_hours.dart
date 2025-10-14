@@ -1,12 +1,16 @@
 import 'package:beauty_center/core/database/extensions/db_models_extensions.dart';
 import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
+import 'package:beauty_center/core/tabs/app_tabs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../../core/connectivity/connectivity_provider.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/app_database.dart';
+import '../../../../../core/supabase/supabase_auth_provider.dart';
+import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
 import '../../providers/settings_provider.dart';
 
@@ -18,6 +22,10 @@ class WorkHoursSection extends ConsumerWidget {
   @override
   Widget build(final BuildContext context, final WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final isOffline = ref.watch(isOfflineProvider);
+    final isDisconnectedSup = ref.watch(supabaseAuthProvider).isDisconnected;
+
     final hours = workHours.workDayMinutes ~/ 60;
     final minutes = workHours.workDayMinutes % 60;
 
@@ -51,12 +59,23 @@ class WorkHoursSection extends ConsumerWidget {
                   subtitle: '06:00 - 12:00',
                   time: workHours.startTime.format(context),
                   icon: Symbols.wb_sunny_rounded,
-                  onTap: () => _pickTime(
-                    context: context,
-                    ref: ref,
-                    isStart: true,
-                    currentTime: workHours.startTime,
-                  ),
+                  onTap: () {
+                    if (isOffline || isDisconnectedSup) {
+                      showCustomSnackBar(
+                        context: context,
+                        message: context.l10n.offlineNoChangeData,
+                        okColor: AppTabs.settings.color,
+                      );
+                    } else {
+                      _pickTime(
+                        context: context,
+                        ref: ref,
+                        isStart: true,
+                        currentTime: workHours.startTime,
+                      );
+                    }
+                  },
+                  isOffline: isOffline || isDisconnectedSup,
                 ),
               ),
               SizedBox(width: kIsWindows ? 12 : 12.w),
@@ -66,12 +85,23 @@ class WorkHoursSection extends ConsumerWidget {
                   subtitle: '14:00 - 22:00',
                   time: workHours.endTime.format(context),
                   icon: Symbols.nightlight_round,
-                  onTap: () => _pickTime(
-                    context: context,
-                    ref: ref,
-                    isStart: false,
-                    currentTime: workHours.endTime,
-                  ),
+                  onTap: () {
+                    if (isOffline || isDisconnectedSup) {
+                      showCustomSnackBar(
+                        context: context,
+                        message: context.l10n.offlineNoChangeData,
+                        okColor: AppTabs.settings.color,
+                      );
+                    } else {
+                      _pickTime(
+                        context: context,
+                        ref: ref,
+                        isStart: false,
+                        currentTime: workHours.endTime,
+                      );
+                    }
+                  },
+                  isOffline: isOffline || isDisconnectedSup,
                 ),
               ),
             ],
@@ -131,17 +161,28 @@ class WorkHoursSection extends ConsumerWidget {
       return;
     }
 
+    final totalMinutes = picked.hour * 60 + picked.minute;
     if (isStart) {
-      if (picked.hour < 6 || picked.hour > 12) {
+      // Range 6:00 - 12:00
+      if (totalMinutes < 360 || totalMinutes > 720) {
         if (context.mounted) {
-          _showSnackBar(context, context.l10n.rangeStartWorkHours);
+          showCustomSnackBar(
+            context: context,
+            message: context.l10n.rangeStartWorkHours,
+            okColor: AppTabs.settings.color,
+          );
         }
         return;
       }
     } else {
-      if (picked.hour < 14 || picked.hour > 22) {
+      // Range 14:00 - 22:00
+      if (totalMinutes < 840 || totalMinutes > 1320) {
         if (context.mounted) {
-          _showSnackBar(context, context.l10n.rangeEndWorkHours);
+          showCustomSnackBar(
+            context: context,
+            message: context.l10n.rangeEndWorkHours,
+            okColor: AppTabs.settings.color,
+          );
         }
         return;
       }
@@ -160,19 +201,6 @@ class WorkHoursSection extends ConsumerWidget {
       );
     }
   }
-
-  void _showSnackBar(final BuildContext context, final String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(kIsWindows ? 8 : 8.r),
-        ),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
 }
 
 class _TimeCard extends StatelessWidget {
@@ -182,6 +210,7 @@ class _TimeCard extends StatelessWidget {
     required this.time,
     required this.icon,
     required this.onTap,
+    required this.isOffline,
   });
 
   final String label;
@@ -189,6 +218,7 @@ class _TimeCard extends StatelessWidget {
   final String time;
   final IconData icon;
   final VoidCallback onTap;
+  final bool isOffline;
 
   @override
   Widget build(final BuildContext context) {
@@ -197,52 +227,57 @@ class _TimeCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(kIsWindows ? 12 : 12.r),
-      child: Container(
-        padding: EdgeInsets.all(kIsWindows ? 16 : 16.w),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(kIsWindows ? 12 : 12.r),
-          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  size: kIsWindows ? 20 : 20.sp,
-                  color: colorScheme.primary,
-                ),
-                SizedBox(width: kIsWindows ? 6 : 6.w),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: kIsWindows ? 18 : 18.sp,
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
+      child: Opacity(
+        opacity: isOffline ? 0.6 : 1.0,
+        child: Container(
+          padding: EdgeInsets.all(kIsWindows ? 16 : 16.w),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(kIsWindows ? 12 : 12.r),
+            border: Border.all(
+              color: colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: kIsWindows ? 20 : 20.sp,
+                    color: colorScheme.primary,
                   ),
+                  SizedBox(width: kIsWindows ? 6 : 6.w),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: kIsWindows ? 18 : 18.sp,
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: kIsWindows ? 8 : 8.h),
+              Text(
+                time,
+                style: TextStyle(
+                  fontSize: kIsWindows ? 22 : 22.sp,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
                 ),
-              ],
-            ),
-            SizedBox(height: kIsWindows ? 8 : 8.h),
-            Text(
-              time,
-              style: TextStyle(
-                fontSize: kIsWindows ? 22 : 22.sp,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
               ),
-            ),
-            SizedBox(height: kIsWindows ? 4 : 4.h),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: kIsWindows ? 16 : 16.sp,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              SizedBox(height: kIsWindows ? 4 : 4.h),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: kIsWindows ? 16 : 16.sp,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

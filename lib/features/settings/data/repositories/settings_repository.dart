@@ -1,4 +1,3 @@
-import 'package:beauty_center/core/database/extensions/db_models_extensions.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart' as material show Color, TimeOfDay;
 
@@ -79,14 +78,8 @@ class SettingsRepository {
   }) async {
     _validateCabinId(id);
 
-    await (_db.update(
-      _db.cabinsTable,
-    )..where((final t) => t.id.equals(id))).write(
-      CabinsTableCompanion(
-        color: Value(color.toARGB32()),
-        updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
-      ),
-    );
+    await (_db.update(_db.cabinsTable)..where((final t) => t.id.equals(id)))
+        .write(CabinsTableCompanion(color: Value(color.toARGB32())));
   }
 
   /// Delete cabin
@@ -121,29 +114,6 @@ class SettingsRepository {
         await deleteCabin(cabin.id);
       }
     }
-  }
-
-  // CABINS - SYNC
-  /// Get cabins that need sync
-  Future<List<Cabin>> getUnsyncedCabins() =>
-      (_db.select(_db.cabinsTable)..where(
-            (final t) =>
-                t.lastSyncedAt.isNull() |
-                t.updatedAt.isBiggerThanValue(t.lastSyncedAt as int),
-          ))
-          .get();
-
-  /// Mark cabin as synced
-  Future<void> markCabinSynced(final int id) async {
-    _validateCabinId(id);
-
-    await (_db.update(
-      _db.cabinsTable,
-    )..where((final t) => t.id.equals(id))).write(
-      CabinsTableCompanion(
-        lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
-      ),
-    );
   }
 
   // ========================================================================
@@ -213,14 +183,8 @@ class SettingsRepository {
     _validateOperatorId(id);
     if (name.trim().isEmpty) return;
 
-    await (_db.update(
-      _db.operatorsTable,
-    )..where((final t) => t.id.equals(id))).write(
-      OperatorsTableCompanion(
-        name: Value(name),
-        updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
-      ),
-    );
+    await (_db.update(_db.operatorsTable)..where((final t) => t.id.equals(id)))
+        .write(OperatorsTableCompanion(name: Value(name)));
   }
 
   /// Delete operator
@@ -255,27 +219,6 @@ class SettingsRepository {
     }
   }
 
-  // OPERATORS - SYNC
-  /// Get operators that need sync
-  Future<List<Operator>> getUnsyncedOperators() =>
-      (_db.select(_db.operatorsTable)..where(
-            (final t) =>
-                t.lastSyncedAt.isNull() |
-                t.updatedAt.isBiggerThanValue(t.lastSyncedAt as int),
-          ))
-          .get();
-
-  /// Mark operator as synced
-  Future<void> markOperatorSynced(final int id) async {
-    await (_db.update(
-      _db.operatorsTable,
-    )..where((final t) => t.id.equals(id))).write(
-      OperatorsTableCompanion(
-        lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
-      ),
-    );
-  }
-
   // ========================================================================
 
   // WORK HOURS
@@ -303,77 +246,7 @@ class SettingsRepository {
         startMin: Value(startTime.minute),
         endHr: Value(endTime.hour),
         endMin: Value(endTime.minute),
-        updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
       ),
     );
-  }
-
-  /// Check if work hours need sync
-  Future<bool> workHoursNeedSync() async {
-    final wh = await getWorkHours();
-    return wh.needsSync;
-  }
-
-  /// Mark work hours as synced
-  Future<void> markWorkHoursSynced() async {
-    await (_db.update(
-      _db.workHoursTable,
-    )..where((final t) => t.id.equals(kIdWorkHours))).write(
-      WorkHoursTableCompanion(
-        lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
-      ),
-    );
-  }
-
-  // ========================================================================
-
-  // FULL SYNC HELPERS
-  /// Check if any data needs sync
-  Future<bool> hasUnsyncedData() async {
-    final unsyncedCabins = await getUnsyncedCabins();
-    final unsyncedOperators = await getUnsyncedOperators();
-    final workHoursNeedsSync = await workHoursNeedSync();
-
-    return unsyncedCabins.isNotEmpty ||
-        unsyncedOperators.isNotEmpty ||
-        workHoursNeedsSync;
-  }
-
-  /// Get all unsynced data summary
-  Future<Map<String, dynamic>> getUnsyncedSummary() async {
-    final unsyncedCabins = await getUnsyncedCabins();
-    final unsyncedOperators = await getUnsyncedOperators();
-    final workHoursNeedsSync = await workHoursNeedSync();
-
-    return {
-      'cabins': unsyncedCabins.length,
-      'operators': unsyncedOperators.length,
-      'workHours': workHoursNeedsSync ? 1 : 0,
-      'total':
-          unsyncedCabins.length +
-          unsyncedOperators.length +
-          (workHoursNeedsSync ? 1 : 0),
-    };
-  }
-
-  /// Mark all as synced
-  Future<void> markAllAsSynced() async {
-    await _db.transaction(() async {
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-
-      // Mark all cabins
-      await (_db.update(_db.cabinsTable)..where((final t) => t.id.isNotNull()))
-          .write(CabinsTableCompanion(lastSyncedAt: Value(now)));
-
-      // Mark all operators
-      await (_db.update(_db.operatorsTable)
-            ..where((final t) => t.id.isNotNull()))
-          .write(OperatorsTableCompanion(lastSyncedAt: Value(now)));
-
-      // Mark work hours
-      await (_db.update(_db.workHoursTable)
-            ..where((final t) => t.id.equals(kIdWorkHours)))
-          .write(WorkHoursTableCompanion(lastSyncedAt: Value(now)));
-    });
   }
 }

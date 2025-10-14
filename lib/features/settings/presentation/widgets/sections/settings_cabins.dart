@@ -1,13 +1,17 @@
 import 'package:beauty_center/core/database/extensions/db_models_extensions.dart';
 import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
+import 'package:beauty_center/core/supabase/supabase_auth_provider.dart';
+import 'package:beauty_center/core/tabs/app_tabs.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../../core/connectivity/connectivity_provider.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/app_database.dart';
+import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
 import '../../providers/settings_provider.dart';
 
@@ -19,6 +23,9 @@ class CabinsSection extends ConsumerWidget {
   @override
   Widget build(final BuildContext context, final WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final isOffline = ref.watch(isOfflineProvider);
+    final isDisconnectedSup = ref.watch(supabaseAuthProvider).isDisconnected;
     final actions = ref.read(settingsActionsProvider);
 
     return SectionCard(
@@ -54,10 +61,18 @@ class CabinsSection extends ConsumerWidget {
                 child: Slider(
                   min: kMinCabinsCount.toDouble(),
                   max: kMaxCabinsCount.toDouble(),
-                  divisions: kMaxCabinsCount - kMinCabinsCount,
-                  value: cabins.length.toDouble().clamp(1.0, 5.0),
-                  label: '${cabins.length}',
-                  onChanged: (final v) => actions.setCabinsCount(v.round()),
+                  divisions: (kMaxCabinsCount - kMinCabinsCount)
+                      .clamp(1, double.infinity)
+                      .toInt(),
+                  value: cabins.length.toDouble().clamp(
+                    kMinCabinsCount.toDouble(),
+                    kMaxCabinsCount.toDouble(),
+                  ),
+                  label:
+                      '${cabins.length.clamp(kMinCabinsCount, kMaxCabinsCount)}',
+                  onChanged: isOffline || isDisconnectedSup
+                      ? null
+                      : (final v) => actions.setCabinsCount(v.round()),
                 ),
               ),
               SizedBox(
@@ -77,7 +92,11 @@ class CabinsSection extends ConsumerWidget {
           ),
           SizedBox(height: kIsWindows ? 16 : 16.h),
           ...cabins.asMap().entries.map(
-            (final entry) => _CabinRow(index: entry.key, cabin: entry.value),
+            (final entry) => _CabinRow(
+              index: entry.key,
+              cabin: entry.value,
+              isOffline: isOffline || isDisconnectedSup,
+            ),
           ),
         ],
       ),
@@ -86,16 +105,21 @@ class CabinsSection extends ConsumerWidget {
 }
 
 class _CabinRow extends ConsumerWidget {
-  const _CabinRow({required this.index, required this.cabin});
+  const _CabinRow({
+    required this.index,
+    required this.cabin,
+    required this.isOffline,
+  });
 
   final int index;
   final Cabin cabin;
+  final bool isOffline;
 
   @override
   Widget build(final BuildContext context, final WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final brightness = ThemeData.estimateBrightnessForColor(cabin.colorValue);
-    final textColor = brightness == Brightness.dark
+    final overColor = brightness == Brightness.dark
         ? Colors.white
         : Colors.black;
 
@@ -118,7 +142,17 @@ class _CabinRow extends ConsumerWidget {
           SizedBox(width: kIsWindows ? 12 : 12.w),
           Expanded(
             child: InkWell(
-              onTap: () => _showColorPicker(context, ref, cabin),
+              onTap: () {
+                if (isOffline) {
+                  showCustomSnackBar(
+                    context: context,
+                    message: context.l10n.offlineNoChangeData,
+                    okColor: AppTabs.settings.color,
+                  );
+                } else {
+                  _showColorPicker(context, ref, cabin);
+                }
+              },
               borderRadius: BorderRadius.circular(kIsWindows ? 10 : 10.r),
               child: Container(
                 height: kIsWindows ? 50 : 50.h,
@@ -141,7 +175,7 @@ class _CabinRow extends ConsumerWidget {
                   child: Text(
                     context.l10n.tapToChangeColor,
                     style: TextStyle(
-                      color: textColor,
+                      color: isOffline ? Colors.grey : overColor,
                       fontSize: kIsWindows ? 14 : 14.sp,
                       fontWeight: FontWeight.w500,
                     ),

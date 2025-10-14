@@ -1,13 +1,17 @@
 import 'package:beauty_center/core/database/extensions/db_models_extensions.dart';
 import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
+import 'package:beauty_center/core/tabs/app_tabs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../../core/connectivity/connectivity_provider.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/app_database.dart';
+import '../../../../../core/supabase/supabase_auth_provider.dart';
+import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
 import '../../providers/settings_provider.dart';
 
@@ -19,6 +23,9 @@ class OperatorsSection extends ConsumerWidget {
   @override
   Widget build(final BuildContext context, final WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final isOffline = ref.watch(isOfflineProvider);
+    final isDisconnectedSup = ref.watch(supabaseAuthProvider).isDisconnected;
     final actions = ref.read(settingsActionsProvider);
 
     return SectionCard(
@@ -54,10 +61,18 @@ class OperatorsSection extends ConsumerWidget {
                 child: Slider(
                   min: kMinOperatorsCount.toDouble(),
                   max: kMaxOperatorsCount.toDouble(),
-                  divisions: kMaxOperatorsCount - kMinOperatorsCount,
-                  value: operators.length.toDouble().clamp(1.0, 5.0),
-                  label: '${operators.length}',
-                  onChanged: (final v) => actions.setOperatorsCount(v.round()),
+                  divisions: (kMaxOperatorsCount - kMinOperatorsCount)
+                      .clamp(1, double.infinity)
+                      .toInt(),
+                  value: operators.length.toDouble().clamp(
+                    kMinOperatorsCount.toDouble(),
+                    kMaxOperatorsCount.toDouble(),
+                  ),
+                  label:
+                      '${operators.length.clamp(kMinOperatorsCount, kMaxOperatorsCount)}',
+                  onChanged: isOffline || isDisconnectedSup
+                      ? null
+                      : (final v) => actions.setOperatorsCount(v.round()),
                 ),
               ),
               SizedBox(
@@ -77,8 +92,11 @@ class OperatorsSection extends ConsumerWidget {
           ),
           SizedBox(height: kIsWindows ? 16 : 16.h),
           ...operators.asMap().entries.map(
-            (final entry) =>
-                _OperatorRow(index: entry.key, operator: entry.value),
+            (final entry) => _OperatorRow(
+              index: entry.key,
+              operator: entry.value,
+              isOffline: isOffline || isDisconnectedSup,
+            ),
           ),
         ],
       ),
@@ -87,10 +105,15 @@ class OperatorsSection extends ConsumerWidget {
 }
 
 class _OperatorRow extends ConsumerStatefulWidget {
-  const _OperatorRow({required this.index, required this.operator});
+  const _OperatorRow({
+    required this.index,
+    required this.operator,
+    required this.isOffline,
+  });
 
   final int index;
   final Operator operator;
+  final bool isOffline;
 
   @override
   ConsumerState<_OperatorRow> createState() => _OperatorRowState();
@@ -151,35 +174,51 @@ class _OperatorRowState extends ConsumerState<_OperatorRow> {
           Expanded(
             child: ValueListenableBuilder<TextEditingValue>(
               valueListenable: _controller,
-              builder: (_, _, _) => TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                textCapitalization: TextCapitalization.words,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZÀ-ÿ\s]')),
-                  LengthLimitingTextInputFormatter(kMaxOperatorsNameLength),
-                ],
-                decoration: InputDecoration(
-                  labelText: context.l10n.name,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kIsWindows ? 12 : 12.r),
+              builder: (_, _, _) => Opacity(
+                opacity: widget.isOffline ? 0.6 : 1.0,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  readOnly: widget.isOffline,
+                  textCapitalization: TextCapitalization.words,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZÀ-ÿ\s]')),
+                    LengthLimitingTextInputFormatter(kMaxOperatorsNameLength),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: context.l10n.name,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        kIsWindows ? 12 : 12.r,
+                      ),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: kIsWindows ? 16 : 16.w,
+                      vertical: kIsWindows ? 14 : 14.h,
+                    ),
+                    counterText:
+                        '${_controller.text.length}/$kMaxOperatorsNameLength',
                   ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: kIsWindows ? 16 : 16.w,
-                    vertical: kIsWindows ? 14 : 14.h,
-                  ),
-                  counterText:
-                      '${_controller.text.length}/$kMaxOperatorsNameLength',
+                  onTap: () {
+                    if (widget.isOffline && context.mounted) {
+                      _focusNode.unfocus();
+                      showCustomSnackBar(
+                        context: context,
+                        message: context.l10n.offlineNoChangeData,
+                        okColor: AppTabs.settings.color,
+                      );
+                    }
+                  },
+                  onSubmitted: (_) => _onSave(),
+                  onEditingComplete: () {
+                    _focusNode.unfocus();
+                    _onSave();
+                  },
+                  onTapOutside: (_) {
+                    _focusNode.unfocus();
+                    _onSave();
+                  },
                 ),
-                onSubmitted: (_) => _onSave(),
-                onEditingComplete: () {
-                  _focusNode.unfocus();
-                  _onSave();
-                },
-                onTapOutside: (_) {
-                  _focusNode.unfocus();
-                  _onSave();
-                },
               ),
             ),
           ),

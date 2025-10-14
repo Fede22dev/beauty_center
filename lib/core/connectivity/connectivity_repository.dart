@@ -1,7 +1,4 @@
-import 'dart:async';
-
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
 
 class ConnectivityRepository {
   ConnectivityRepository._();
@@ -9,9 +6,13 @@ class ConnectivityRepository {
   static final instance = ConnectivityRepository._();
 
   final _connectivity = Connectivity();
-  final _isOffline = ValueNotifier<bool>(false);
 
-  ValueListenable<bool> get isOfflineListenable => _isOffline;
+  Stream<bool> get isOfflineStream async* {
+    final initial = await _connectivity.checkConnectivity();
+    yield _isDisconnected(initial);
+
+    yield* _connectivity.onConnectivityChanged.map(_isDisconnected);
+  }
 
   bool _isDisconnected(final Iterable<ConnectivityResult> results) =>
       !results.any(
@@ -20,11 +21,4 @@ class ConnectivityRepository {
             result == ConnectivityResult.mobile ||
             result == ConnectivityResult.ethernet,
       );
-
-  Future<void> init() async {
-    _isOffline.value = _isDisconnected(await _connectivity.checkConnectivity());
-    _connectivity.onConnectivityChanged.listen((final results) {
-      _isOffline.value = _isDisconnected(results);
-    });
-  }
 }
