@@ -1,7 +1,10 @@
 {
   "@@locale": "en",
   "notSupportedOsMessage": "This application is not supported on your device!\nOnly Windows and Android are supported.",
-  "loginErrorCredentials": "Invalid credentials or session expired.",
+  "updateAvailable": "New version available",
+  "update": "Update",
+  "ignore": "Ignore",
+  "checkUpdate": "Check for new update...",
   "insertCredentialsSupabase": "Enter your Supabase project credentials.",
   "appointments": "Appointments",
   "clients": "Clients",

@@ -51,7 +51,7 @@ class _TreatmentsPageState extends ConsumerState<TreatmentsPage>
       });
     }
 
-    log.info('build');
+    log.fine('build');
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),

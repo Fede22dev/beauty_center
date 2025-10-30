@@ -1,24 +1,26 @@
 import 'dart:io';
 
-import 'package:beauty_center/core/constants/app_constants.dart';
-import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../connectivity/connectivity_provider.dart';
+import '../constants/app_constants.dart';
+import '../logging/app_logger.dart';
 
+/// Authentication status for Supabase connection
 enum SupabaseAuthStatus { initializing, disconnected, connecting, connected }
 
+/// Immutable state for Supabase authentication
 class SupabaseAuthState {
-  const SupabaseAuthState(this.status, [this.errorMessage]);
+  const SupabaseAuthState(this.status);
 
   factory SupabaseAuthState.initializing() =>
       const SupabaseAuthState(SupabaseAuthStatus.initializing);
 
-  factory SupabaseAuthState.disconnected([final String? error]) =>
-      SupabaseAuthState(SupabaseAuthStatus.disconnected, error);
+  factory SupabaseAuthState.disconnected() =>
+      const SupabaseAuthState(SupabaseAuthStatus.disconnected);
 
   factory SupabaseAuthState.connecting() =>
       const SupabaseAuthState(SupabaseAuthStatus.connecting);
@@ -27,7 +29,6 @@ class SupabaseAuthState {
       const SupabaseAuthState(SupabaseAuthStatus.connected);
 
   final SupabaseAuthStatus status;
-  final String? errorMessage;
 
   bool get isInitializing => status == SupabaseAuthStatus.initializing;
 
@@ -40,20 +41,32 @@ class SupabaseAuthState {
 
 const _secureStorage = FlutterSecureStorage();
 
+/// Supabase provider with proper initialization handling
 class SupabaseAuthNotifier extends Notifier<SupabaseAuthState> {
+  final log = AppLogger.getLogger(name: 'SupabaseAuthNotifier');
+
+  var _isInitialized = false;
+
   @override
   SupabaseAuthState build() {
+    // Listen to connectivity changes
     ref.listen<bool>(isOfflineProvider, (final prev, final next) async {
+      // From offline → online AND currently disconnected
       if ((prev ?? true) && next == false && state.isDisconnected) {
-        await _init();
+        await _initializeSupabase();
+      } else if (next) {
+        // Gone offline
+        state = SupabaseAuthState.disconnected();
       }
     });
 
-    _init();
+    // Initial setup
+    _initializeSupabase();
     return SupabaseAuthState.initializing();
   }
 
-  Future<void> _init() async {
+  /// Initialize Supabase client from stored credentials
+  Future<void> _initializeSupabase() async {
     try {
       final url = await _secureStorage.read(
         key: kSupabaseUrlKeySecureStorageKey,
@@ -61,75 +74,75 @@ class SupabaseAuthNotifier extends Notifier<SupabaseAuthState> {
       final anonKey = await _secureStorage.read(
         key: kSupabaseAnonKeySecureStorageKey,
       );
-      if (url == null || anonKey == null) return;
 
+      if (url == null || anonKey == null) {
+        log.fine('No stored credentials found');
+        state = SupabaseAuthState.disconnected();
+        return;
+      }
+
+      // Check network connectivity
       await InternetAddress.lookup(Uri.parse(url).host);
 
-      await Supabase.initialize(url: url, anonKey: anonKey);
+      if (!_isInitialized) {
+        await Supabase.initialize(
+          url: url,
+          anonKey: anonKey,
+          debug: kDebugMode,
+        );
+        _isInitialized = true;
+        log.info('Supabase initialized successfully');
+      }
 
+      // Check current session
       final session = Supabase.instance.client.auth.currentSession;
       state = session != null
           ? SupabaseAuthState.connected()
           : SupabaseAuthState.disconnected();
-    } on SocketException catch (e) {
-      state = SupabaseAuthState.disconnected(e.message);
-    } on Exception catch (e) {
-      state = SupabaseAuthState.disconnected(e.toString());
-    }
 
-    if (state.isConnected) {
-      final supabase = Supabase.instance.client;
-      final info = await PackageInfo.fromPlatform();
-
-      final platform = Platform.isAndroid
-          ? 'android'
-          : Platform.isWindows
-          ? 'windows'
-          : 'unknown';
-
-      final response = await supabase.functions.invoke(
-        'check_update',
-        body: {'platform': platform, 'currentVersion': info.version},
-      );
-
-      final data = response.data;
-      if (data['hasUpdate'] == true) {
-        print('Nuova versione disponibile: ${data['latestVersion']}');
-        print('Download: ${data['downloadUrl']}');
-        print('Descrizione: ${data['description']}');
-      } else {
-        print('App già aggiornata.');
-      }
-      print(data);
+      log.fine('Auth state: ${state.status}');
+    } catch (e) {
+      log.warning('Supabase initialization failed: $e');
+      state = SupabaseAuthState.disconnected();
     }
   }
 
+  /// Login with email and password
   Future<void> loginWithEmail({
     required final String url,
     required final String anonKey,
     required final String email,
     required final String password,
+    required final void Function(String message) onError,
   }) async {
-    final previousUrl = await _secureStorage.read(
-      key: kSupabaseUrlKeySecureStorageKey,
-    );
-    final previousAnonKey = await _secureStorage.read(
-      key: kSupabaseAnonKeySecureStorageKey,
-    );
-    final previousSession = Supabase.instance.client.auth.currentSession;
-
     state = SupabaseAuthState.connecting();
 
     try {
+      // Validate network connectivity
       await InternetAddress.lookup(Uri.parse(url).host);
-      await Supabase.initialize(url: url, anonKey: anonKey);
 
+      // Check if we need to reinitialize
+      if (_isInitialized) {
+        // Properly dispose old client
+        await Supabase.instance.client.dispose();
+        _isInitialized = false;
+      } else {
+        await Supabase.initialize(
+          url: url,
+          anonKey: anonKey,
+          debug: kDebugMode,
+        );
+        _isInitialized = true;
+      }
+
+      // Attempt sign in
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
       if (response.session != null) {
+        // Save credentials securely
         await _secureStorage.write(
           key: kSupabaseUrlKeySecureStorageKey,
           value: url,
@@ -138,36 +151,58 @@ class SupabaseAuthNotifier extends Notifier<SupabaseAuthState> {
           key: kSupabaseAnonKeySecureStorageKey,
           value: anonKey,
         );
+
         state = SupabaseAuthState.connected();
+        log.info('Login successful');
       } else {
-        throw Exception(ref.l10n.loginErrorCredentials);
+        throw Exception('Login failed: No session returned');
       }
-    } on Exception catch (e) {
-      if (previousUrl != null && previousAnonKey != null) {
-        await Supabase.initialize(url: previousUrl, anonKey: previousAnonKey);
-        if (previousSession != null) {
-          state = SupabaseAuthState.connected();
-        } else {
-          state = SupabaseAuthState.disconnected(e.toString());
-        }
-      } else {
-        state = SupabaseAuthState.disconnected(e.toString());
-      }
+    } catch (e) {
+      log.warning('Login failed: $e');
+      onError(e.toString());
+      state = SupabaseAuthState.disconnected();
     }
   }
 
-  Future<void> logout() async {
+  /// Logout current user
+  Future<void> logout(final void Function(String message) onError) async {
     try {
-      await Supabase.instance.client.auth.signOut();
-    } on Exception catch (e) {
-      state = SupabaseAuthState.disconnected(e.toString());
+      if (_isInitialized) {
+        await Supabase.instance.client.auth.signOut();
+        log.info('Logout successful');
+      }
+    } catch (e) {
+      log.warning('Logout failed: $e');
+      onError(e.toString());
+    } finally {
+      state = SupabaseAuthState.disconnected();
     }
+  }
 
-    state = SupabaseAuthState.disconnected();
+  /// Manually trigger re-initialization (for debugging)
+  Future<void> reinitialize() async {
+    if (_isInitialized) {
+      await Supabase.instance.client.dispose();
+      _isInitialized = false;
+    }
+    await _initializeSupabase();
   }
 }
 
+/// Provider for Supabase authentication state
 final supabaseAuthProvider =
     NotifierProvider<SupabaseAuthNotifier, SupabaseAuthState>(
       SupabaseAuthNotifier.new,
     );
+
+/// Convenience provider to get Supabase client directly
+final supabaseClientProvider = Provider<SupabaseClient?>((final ref) {
+  final authState = ref.watch(supabaseAuthProvider);
+  return authState.isConnected ? Supabase.instance.client : null;
+});
+
+/// Provider to check if user is authenticated
+final isAuthenticatedProvider = Provider<bool>((final ref) {
+  final authState = ref.watch(supabaseAuthProvider);
+  return authState.isConnected;
+});

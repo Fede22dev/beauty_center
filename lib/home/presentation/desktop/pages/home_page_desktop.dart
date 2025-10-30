@@ -6,6 +6,7 @@ import 'package:sidebarx/sidebarx.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/lazy_keep_alive_stack.dart';
 import '../../../providers/home_tab_provider.dart';
+import '../../widgets/common_app_bar.dart';
 import '../widgets/navigations/side_nav.dart';
 
 class HomePageDesktop extends ConsumerStatefulWidget {
@@ -51,39 +52,38 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          SafeArea(
-            child: Consumer(
-              builder: (final context, final ref, _) => SideNav(
-                selectedIndex: ref.watch(homeTabProvider).index,
-                controller: _railController,
-              ),
-            ),
-          ),
-          AnimatedBuilder(
-            animation: _railController,
-            builder: (final context, _) => AnimatedPadding(
-              duration: kDefaultAppAnimationsDuration,
-              padding: _railController.extended
-                  ? const EdgeInsets.symmetric(vertical: 4)
-                  : const EdgeInsets.symmetric(vertical: 20),
-              child: VerticalDivider(
-                width: 2,
-                color: colorScheme.outlineVariant,
-              ),
-            ),
-          ),
+          const CommonAppBar(),
           Expanded(
-            child: SafeArea(
-              child: Consumer(
-                builder: (final context, final ref, _) => LazyKeepAliveStack(
-                  index: ref.watch(homeTabProvider).index,
-                  itemCount: AppTabs.values.length,
-                  itemBuilder: (final BuildContext context, final int index) =>
-                      AppTabs.values[index].buildPage,
+            child: Row(
+              children: [
+                SideNav(
+                  selectedIndex: ref.watch(homeTabProvider).index,
+                  controller: _railController,
                 ),
-              ),
+                AnimatedBuilder(
+                  animation: _railController,
+                  builder: (final context, _) => AnimatedPadding(
+                    duration: kDefaultAppAnimationsDuration,
+                    padding: _railController.extended
+                        ? const EdgeInsets.symmetric(vertical: 4)
+                        : const EdgeInsets.symmetric(vertical: 20),
+                    child: VerticalDivider(
+                      width: 2,
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: LazyKeepAliveStack(
+                    index: ref.watch(homeTabProvider).index,
+                    itemCount: AppTabs.values.length,
+                    itemBuilder: (final context, final index) =>
+                        AppTabs.values[index].buildPage,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

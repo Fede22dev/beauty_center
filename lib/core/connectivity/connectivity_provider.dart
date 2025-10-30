@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'connectivity_repository.dart';
 
 /// Singleton repository
-final connectivityRepositoryProvider = Provider<ConnectivityRepository>(
+final _connectivityRepositoryProvider = Provider<ConnectivityRepository>(
   (final ref) => ConnectivityRepository.instance,
 );
 
 final isOfflineStreamProvider = StreamProvider<bool>((final ref) {
-  final repo = ref.watch(connectivityRepositoryProvider);
+  final repo = ref.watch(_connectivityRepositoryProvider);
   return repo.isOfflineStream;
 });
 

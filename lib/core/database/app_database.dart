@@ -12,11 +12,10 @@ import '../logging/app_logger.dart';
 part 'app_database.g.dart';
 
 // TABLES
-/// The ID is the cabin number (1, 2, 3, 4, 5)
-/// Maximum 5 cabins allowed
+/// The ID is the cabin number
 @DataClassName('Cabin')
 class CabinsTable extends Table {
-  // ID is the cabin number (1-5), manually assigned
+  // ID is the cabin number, manually assigned
   IntColumn get id => integer()();
 
   // Data
@@ -27,11 +26,10 @@ class CabinsTable extends Table {
 }
 
 /// Operators table
-/// The ID is the operator number (1, 2, 3, 4, 5)
-/// Maximum 5 operators allowed
+/// The ID is the operator number
 @DataClassName('Operator')
 class OperatorsTable extends Table {
-  // ID is the operator number (1-5), manually assigned
+  // ID is the operator number, manually assigned
   IntColumn get id => integer()();
 
   // Data

@@ -1,3 +1,4 @@
+import 'package:beauty_center/features/settings/presentation/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -51,7 +52,9 @@ class _AppointmentsPageState extends ConsumerState<AppointmentsPage>
       });
     }
 
-    log.info('build');
+    log.fine('build');
+
+    final cabins = ref.watch(cabinsStreamProvider);
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
@@ -79,7 +82,15 @@ class _AppointmentsPageState extends ConsumerState<AppointmentsPage>
                 SizedBox(height: kIsWindows ? 8 : 8.h),
                 const Center(child: Text('Calendar2')),
                 SizedBox(height: kIsWindows ? 8 : 8.h),
-                const Center(child: Text('Calendar3')),
+                Center(
+                  child: Text(
+                    cabins.when(
+                      data: (final data) => data.length.toString(),
+                      error: (final error, final stackTrace) => 'err',
+                      loading: () => 'Loading...',
+                    ),
+                  ),
+                ),
                 SizedBox(
                   height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
                 ),

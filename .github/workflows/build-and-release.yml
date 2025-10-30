@@ -85,13 +85,15 @@ jobs:
         run: yes | flutter doctor --android-licenses || true
 
       - name: Get dependencies & generate l10n & generate .g files & generate launcher icon & generate splash screen & build APK
+        env:
+          ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
         run: |
           flutter pub get
           flutter gen-l10n
           dart run build_runner build --delete-conflicting-outputs
           dart run flutter_launcher_icons
           dart run flutter_native_splash:create
-          flutter build apk --release
+          flutter build apk --release --dart-define=ADMIN_PIN=$ADMIN_PIN
 
       - name: Rename APK and move to dist dir
         run: |
@@ -124,6 +126,8 @@ jobs:
           cache: 'pub'
 
       - name: Enable Windows desktop & get dependencies & generate l10n & generate .g files & generate launcher icon & generate splash screen & build exe
+        env:
+          ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
@@ -131,7 +135,7 @@ jobs:
           dart run build_runner build --delete-conflicting-outputs
           dart run flutter_launcher_icons
           dart run flutter_native_splash:create
-          flutter build windows --release
+          flutter build windows --release --dart-define=ADMIN_PIN=$ADMIN_PIN
 
       - name: Setup Inno Setup
         run: |
@@ -371,12 +375,17 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ needs.setup.outputs.release_name }}
           body: |
+            ## 🔐 Admin PIN Notice
+            This release was auto built with a **secret admin PIN** required to access certain screens.
+            If you want to try the app yourself, **clone the repository**, choice your own admin PIN, and **build it locally**.
+            Check the **README** for setup details.
+            
             ## 📱 Platforms & Downloads
             
             | Platform | File | Architecture |
             |----------|------|--------------|
-            | 🤖 Android | `*-universal-release.apk` | Universal (all architectures) |
-            | 💻 Windows | `*-windows-installer.exe` | Windows Installer (x64) |
+            | 🤖 Android | `*_universal.apk` | Universal (all architectures) |
+            | 💻 Windows | `*_installer.exe` | Windows Installer (x64) |
             
             ## 🔄 What's Changed
             ${{ steps.changelog.outputs.changelog }}

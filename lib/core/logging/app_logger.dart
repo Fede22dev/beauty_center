@@ -7,10 +7,7 @@ import 'package:logging/logging.dart';
 class AppLogger {
   static bool useAnsiColor = !kReleaseMode;
 
-  static void init({
-    final Level? level = kDebugMode ? Level.ALL : Level.WARNING,
-    final bool? ansiColor,
-  }) {
+  static void init({final Level? level = Level.FINE, final bool? ansiColor}) {
     useAnsiColor = ansiColor ?? stdout.supportsAnsiEscapes;
 
     Logger.root.level = level;
@@ -35,7 +32,8 @@ class AppLogger {
     final line =
         '$color$timeField$loggerName$levelName $message$error$reset$stack';
 
-    stdout.writeln(line);
+    //stdout.writeln(line);
+    print(line);
   }
 
   static String _ansiColorForLevel(final Level level) {

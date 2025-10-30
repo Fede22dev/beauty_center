@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.swp
+.env
 .DS_Store
 .atom/
 .build/
@@ -11,6 +12,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+TODO.md
 
 # IntelliJ related
 *.iml
@@ -32,6 +34,7 @@ doc/api/
 .pub-cache/
 .pub/
 build/
+*generated*
 
 # Generated files
 *.freezed.dart
@@ -56,5 +59,3 @@ lib/l10n/app_localizations*.dart
 
 # Builds
 dist/
-
-*generated*

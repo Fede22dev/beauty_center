@@ -27,8 +27,8 @@
 
 ## ✨ What is Beauty Center?
 
-**Beauty Center** is a sleek and modular **cross-platform app (Windows & Android)** built in *
-*Flutter**.  
+**Beauty Center** is a **cross-platform app (Windows & Android)** built in **Flutter**.
+
 It helps beauty and wellness centers manage:
 
 - 📅 Appointments
@@ -37,7 +37,7 @@ It helps beauty and wellness centers manage:
 - 📊 Statistics
 - ⚙️ Settings
 
-> 🧠 Designed for offline-first usage, with optional cloud sync in future releases.
+> 🧠 Designed for offline-first usage, with cloud sync.
 
 ---
 
@@ -69,12 +69,12 @@ dart run flutter_launcher_icons
 
 dart run flutter_native_splash:create
 
-flutter run
+flutter run --dart-define=ADMIN_PIN=.env
 
-flutter run -d windows
+flutter run -d windows --dart-define=ADMIN_PIN=.env
 ```
 
-This app developed and tested only on **Windows** and **Android**
+This app developed and tested only on **Windows** and **Android** especially with dark theme
 
 ---
 
