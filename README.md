@@ -74,7 +74,7 @@ flutter run --dart-define=ADMIN_PIN=.env
 flutter run -d windows --dart-define=ADMIN_PIN=.env
 ```
 
-This app developed and tested only on **Windows** and **Android** especially with dark theme
+This app developed and tested only on **Windows** and **Android** especially with **dark theme**
 
 ---
 

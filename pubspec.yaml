@@ -37,8 +37,13 @@ dependencies:
   material_symbols_icons: ^4.2874.0
   flex_color_picker: ^3.7.1
   flutter_animate: ^4.5.2
+  syncfusion_flutter_datepicker: ^31.2.4
   infinite_calendar_view: ^2.10.1
+  #random_avatar: ^0.0.8
+  #table_calendar: ^3.2.0
+  #calendar_view: ^1.4.0
   #infinite_scroll_pagination
+  #url_launcher: ^6.3.2
 
   # Navigation
   sidebarx: ^0.17.2

@@ -2,13 +2,13 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 bool get kIsWindows => Platform.isWindows;
 
 const kDefaultAppAnimationsDuration = Duration(milliseconds: 350);
 
-final kDefaultAppBannerOfflineHeight = kIsWindows ? 42.0 : 32.h;
+const kMinYearCalendar = 2025;
+const kMaxYearCalendar = 2100;
 
 int _randomInRange(final int min, final int max) =>
     min + Random().nextInt(max - min + 1);
