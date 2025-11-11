@@ -413,10 +413,10 @@ packages:
     dependency: "direct main"
     description:
       name: flex_color_picker
-      sha256: "8f753a1a026a13ea5cc5eddbae3ceb886f2537569ab2e5208efb1e3bb5af72ff"
+      sha256: f5b0b53d4ae0d59b1e28dfc21d5398e5028cf8e764518e491a52fd050aa23881
       url: "https://pub.dev"
     source: hosted
-    version: "3.7.1"
+    version: "3.7.2"
   flex_color_scheme:
     dependency: "direct main"
     description:
@@ -669,14 +669,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.5.4"
-  infinite_calendar_view:
-    dependency: "direct main"
-    description:
-      name: infinite_calendar_view
-      sha256: "10f0fd8707a245937b08bb7e9e79700dc10e299cc1afb06faff36155e52b0cc5"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.10.1"
   intl:
     dependency: "direct main"
     description:
@@ -1250,14 +1242,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
-  sticky_infinite_list:
-    dependency: transitive
-    description:
-      name: sticky_infinite_list
-      sha256: d9cc75fd08af04bd23608a7129a895d6424977897bb54a11687ed1f3a3d55be1
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.1"
   storage_client:
     dependency: transitive
     description:
@@ -1310,18 +1294,18 @@ packages:
     dependency: transitive
     description:
       name: syncfusion_flutter_core
-      sha256: a24e9ec04e03c2c14b7b41b1afe60e455adef09b244ab4c425ce6c5b8f58c9ce
+      sha256: "825670efc828e18e14ff310cbcf6de91c8ff73b55c75ae6868a2b3cd87e88b6c"
       url: "https://pub.dev"
     source: hosted
-    version: "31.2.4"
+    version: "31.2.5"
   syncfusion_flutter_datepicker:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_datepicker
-      sha256: "554544875e7fcff8c244aa9e9e77c7b72f75808ebaa30f9f7af3fc9700d6ba18"
+      sha256: "056c4901d749f457e3b9194a6eadac606e683c9342b655fc251db5c6e31093f1"
       url: "https://pub.dev"
     source: hosted
-    version: "31.2.4"
+    version: "31.2.5"
   term_glyph:
     dependency: transitive
     description:

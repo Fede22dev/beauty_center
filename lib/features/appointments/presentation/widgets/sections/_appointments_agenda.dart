@@ -1,10 +1,9 @@
-//file: appointments_agenda.dart
+//file: _appointments_agenda.dart
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:beauty_center/features/settings/presentation/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
@@ -18,7 +17,6 @@ import '../../../../../core/constants/italy_holidays.dart';
 // MODELS & DATA
 // =============================================================================
 
-/// Represents a single appointment with client info, timing, and service details
 class Appointment {
   Appointment({
     required this.id,
@@ -57,7 +55,7 @@ class Appointment {
   );
 }
 
-/// Layout information for positioning overlapping appointments
+// CHANGED: Aggiunta proprietà per gestire meglio l'overlap
 class AppointmentLayout {
   AppointmentLayout({
     required this.appointment,
@@ -74,7 +72,6 @@ class AppointmentLayout {
   final double width;
 }
 
-/// Represents an operator/staff member with their schedule
 class Operator {
   Operator({required this.id, required this.name, required this.color});
 
@@ -83,7 +80,6 @@ class Operator {
   final Color color;
 }
 
-/// Time slot granularity levels with corresponding heights
 enum SlotGranularity {
   minutes30(30, 60),
   minutes15(15, 80),
@@ -112,7 +108,7 @@ enum SlotGranularity {
 
 // =============================================================================
 // MAIN WIDGET
-// =============================================================================
+// ==========================================================================
 
 class AppointmentsAgenda extends ConsumerStatefulWidget {
   const AppointmentsAgenda({super.key});
@@ -129,43 +125,40 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
   late ScrollController _horizontalScrollController;
   late AnimationController _pageTransitionController;
   Timer? _currentTimeTimer;
-  Timer? _inactivityTimer; // CHANGED: Added inactivity timer
   var _currentTime = DateTime.now();
 
-  // Clipboard for copy/cut/paste operations
+  // Clipboard per copy/cut/paste
   Appointment? _clipboardAppointment;
 
-  // Zoom animation scale
+  // CHANGED: Variabile per gestire animazione zoom
   double _currentZoomScale = 1;
 
-  // Hovered slot during drag operations
+  // CHANGED: Variabile per gestire hover su slot durante drag
   String? _hoveredSlotKey;
 
-  // CUSTOMIZATION POINT: Working hours configuration
+  // CUSTOMIZATION POINT: Configurazione orari lavoro
   static const _startHour = 6;
   static const _endHour = 22;
 
-  // CUSTOMIZATION POINT: Timeline width
+  // CUSTOMIZATION POINT: Larghezza timeline (ridotta per più spazio calendario)
   static const double _timelineWidth = 40;
 
-  // CUSTOMIZATION POINT: Minimum operator column width
-  // Android: 120-150px, Windows: 180-200px
+  // CUSTOMIZATION POINT: Larghezza minima colonna operatore
+  // Su Android: 120-150px, Su Windows: 180-200px
   static double get _minOperatorColumnWidth => kIsWindows ? 180.0 : 120.0;
 
-  // CUSTOMIZATION POINT: Maximum visible operators before horizontal scroll (Android only)
-  static const _maxVisibleOperatorsAndroid = 3;
+  // CUSTOMIZATION POINT: Numero massimo colonne prima di attivare scroll orizzontale
+  static const _maxVisibleOperators = 3;
 
-  // CUSTOMIZATION POINT: Appointment padding
+  // CUSTOMIZATION POINT: Padding tra appuntamenti
   static const double _appointmentVerticalPadding = 2;
   static const double _appointmentHorizontalPadding = 4;
 
-  // CUSTOMIZATION POINT: Drag start delay (milliseconds)
-  static const _dragStartDelay = 2500; // CHANGED: Now properly used
+  // CUSTOMIZATION POINT: Delay per attivare drag (in millisecondi)
+  // Aumentato per evitare drag accidentali durante scroll
+  static const _dragStartDelay = 100;
 
-  // CUSTOMIZATION POINT: Inactivity timeout before auto-scroll (minutes)
-  static const _inactivityTimeoutMinutes = 1; // CHANGED: Added configuration
-
-  // Mock data - TODO: Replace with real data from provider/repository
+  // Mock data - TODO: Sostituire con dati reali da provider/repository
   final _operators = <Operator>[
     Operator(id: '1', name: 'Maria', color: Colors.pink),
     Operator(id: '2', name: 'FFFF', color: Colors.cyan),
@@ -233,7 +226,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     ),
   ];
 
-  @override
   void initState() {
     super.initState();
     _selectedDay = _normalizeDate(DateTime.now());
@@ -241,16 +233,13 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     _verticalScrollController = ScrollController();
     _horizontalScrollController = ScrollController();
 
+    // CHANGED: Aggiunto AnimationController per transizioni giorno
     _pageTransitionController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
 
     _startCurrentTimeTimer();
-    _startInactivityTimer(); // CHANGED: Start inactivity monitoring
-
-    // CHANGED: Listen to scroll events to reset inactivity timer
-    _verticalScrollController.addListener(_resetInactivityTimer);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToCurrentTime();
@@ -260,20 +249,15 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
   @override
   void dispose() {
     _currentTimeTimer?.cancel();
-    _inactivityTimer?.cancel(); // CHANGED: Cancel inactivity timer
-    _verticalScrollController
-      ..removeListener(_resetInactivityTimer)
-      ..dispose();
+    _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
     _pageTransitionController.dispose();
     super.dispose();
   }
 
-  /// Normalizes a date to midnight (removes time component)
   DateTime _normalizeDate(final DateTime date) =>
       DateTime(date.year, date.month, date.day);
 
-  /// Updates current time every minute for time indicator
   void _startCurrentTimeTimer() {
     _currentTimeTimer = Timer.periodic(const Duration(minutes: 1), (
       final timer,
@@ -286,80 +270,44 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     });
   }
 
-  // CHANGED: Start inactivity timer to auto-scroll after period of no interaction
-  void _startInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = Timer.periodic(
-      Duration(minutes: _inactivityTimeoutMinutes),
-      (_) {
-        if (mounted && _isSameDay(DateTime.now(), _selectedDay)) {
-          _scrollToCurrentTime();
-        }
-      },
-    );
-  }
-
-  // CHANGED: Reset inactivity timer on user interaction
-  void _resetInactivityTimer() {
-    _startInactivityTimer();
-  }
-
-  /// Scrolls to current time indicator with animation, centered vertically
   void _scrollToCurrentTime() {
     if (!_verticalScrollController.hasClients) return;
 
     final now = DateTime.now();
     if (!_isSameDay(now, _selectedDay)) return;
 
-    // CHANGED: Calculate screen height to center the indicator
-    final screenHeight = MediaQuery.of(context).size.height;
     final offset = _calculateTimeOffset(now);
     final maxScroll = _verticalScrollController.position.maxScrollExtent;
+    final targetScroll = math.min(offset - 100, maxScroll);
 
-    // CHANGED: Center the current time indicator vertically
-    final targetScroll = math.max(
-      0,
-      math.min(offset - (screenHeight / 2), maxScroll),
-    );
-    print('Target scroll: $targetScroll');
-
-    _verticalScrollController.animateTo(
-      targetScroll.toDouble(),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    if (targetScroll > 0) {
+      _verticalScrollController.animateTo(
+        targetScroll,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
-  /// Checks if two dates are the same day
   bool _isSameDay(final DateTime a, final DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  /// Calculates vertical offset for a given time
   double _calculateTimeOffset(final DateTime time) {
     final minutes = (time.hour - _startHour) * 60 + time.minute;
     return minutes / _granularity.minutes * _granularity.slotHeight;
   }
 
-  /// Calculates operator column width based on platform and screen size
-  /// CHANGED: On Windows, divides space equally among operators (no horizontal scroll)
-  /// CHANGED: On Android, uses minimum width with horizontal scroll if needed
   double _calculateOperatorColumnWidth(final BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final availableWidth = screenWidth - _timelineWidth - 32;
+    final availableWidth = screenWidth - _timelineWidth - 32; // 32 = padding
 
-    if (kIsWindows) {
-      // CHANGED: Windows - divide space equally, no scroll
+    if (_operators.length <= _maxVisibleOperators) {
       return availableWidth / _operators.length;
     } else {
-      // CHANGED: Android - use minimum width, enable scroll if needed
-      if (_operators.length <= _maxVisibleOperatorsAndroid) {
-        return availableWidth / _operators.length;
-      } else {
-        return math.max(
-          _minOperatorColumnWidth,
-          availableWidth / _maxVisibleOperatorsAndroid,
-        );
-      }
+      return math.max(
+        _minOperatorColumnWidth,
+        availableWidth / _maxVisibleOperators,
+      );
     }
   }
 
@@ -390,7 +338,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
   }
 
   // ==========================================================================
-  // TOP BAR - Date navigation and selection
+  // TOP BAR
   // ==========================================================================
 
   Widget _buildTopBar(final ColorScheme colorScheme) {
@@ -419,7 +367,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Previous day button
             SizedBox(
               width: kIsWindows ? 100 : 50.w,
               height: buttonHeight,
@@ -440,7 +387,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
               ),
             ),
             SizedBox(width: kIsWindows ? 8 : 6.w),
-            // Date picker button
             Expanded(
               child: SizedBox(
                 height: buttonHeight,
@@ -491,7 +437,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
               ),
             ),
             SizedBox(width: kIsWindows ? 8 : 6.w),
-            // Next day button
             SizedBox(
               width: kIsWindows ? 100 : 50.w,
               height: buttonHeight,
@@ -512,7 +457,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
               ),
             ),
             SizedBox(width: kIsWindows ? 8 : 6.w),
-            // Today button
             SizedBox(
               height: buttonHeight,
               child: FilledButton(
@@ -548,7 +492,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Changes the selected day with transition animation
   void _changeDay(final int delta) {
     _pageTransitionController.forward(from: 0).then((_) {
       setState(() {
@@ -558,7 +501,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     });
   }
 
-  /// Shows date picker dialog for selecting a specific date
   Future<void> _showDatePicker(final ColorScheme colorScheme) async {
     await showDialog<DateTime>(
       context: context,
@@ -606,6 +548,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 textStyle: TextStyle(color: colorScheme.onSurface),
               ),
               firstDayOfWeek: 1,
+              // TODO: localize
               showTrailingAndLeadingDates: true,
               weekendDays: const [7, 1],
               specialDates: allHolidaysItaly().where((final date) {
@@ -613,7 +556,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 return !(date.year == today.year &&
                     date.month == today.month &&
                     date.day == today.day);
-              }).toList(), // TODO: localize
+              }).toList(), // TODO localize
             ),
             monthCellStyle: DateRangePickerMonthCellStyle(
               textStyle: TextStyle(fontSize: kIsWindows ? 16 : 16.sp),
@@ -658,7 +601,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
   }
 
   // ==========================================================================
-  // CALENDAR VIEW - Main agenda display
+  // CALENDAR VIEW
   // ==========================================================================
 
   Widget _buildCalendar(final ColorScheme colorScheme) {
@@ -668,7 +611,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
         screenHeight -
         topBarHeight -
         (kIsWindows ? 80 : 100.h) +
-        1500.h; // TODO: Calculate proper height
+        1500.h; // TODO capire come ottenere l'altezza giusta
 
     return Container(
       height: availableHeight,
@@ -690,17 +633,13 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Builds the day view with timeline and operator columns
-  /// CHANGED: Removed horizontal swipe gesture for day navigation
+  // CHANGED: Vista giornaliera con gestione swipe orizzontale e header sticky
   Widget _buildDayView(final ColorScheme colorScheme) {
     final columnWidth = _calculateOperatorColumnWidth(context);
 
     return GestureDetector(
-      // Pinch-to-zoom for changing time slot granularity
-      onScaleStart: (_) {
-        _currentZoomScale = 1.0;
-        _resetInactivityTimer(); // CHANGED: Reset timer on interaction
-      },
+      // CHANGED: Gestione pinch-to-zoom ottimizzata
+      onScaleStart: (_) => _currentZoomScale = 1.0,
       onScaleUpdate: (final details) {
         final delta = details.scale - _currentZoomScale;
         if (delta.abs() > 0.25) {
@@ -710,20 +649,29 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 : _granularity.zoomOut();
             _currentZoomScale = details.scale;
           });
-          _resetInactivityTimer(); // CHANGED: Reset timer on interaction
         }
       },
-      // CHANGED: Removed horizontal drag for day change (swipe removed)
+      // CHANGED: Gestione swipe orizzontale per cambio giorno
+      onHorizontalDragEnd: (final details) {
+        if (details.primaryVelocity == null) return;
+        if (details.primaryVelocity! > 500) {
+          _changeDay(-1); // Swipe destra -> giorno precedente
+        } else if (details.primaryVelocity! < -500) {
+          _changeDay(1); // Swipe sinistra -> giorno successivo
+        }
+      },
       child: Column(
         children: [
+          // CHANGED: Header sticky sempre visibile
           _buildStickyHeader(colorScheme, columnWidth),
+          // CHANGED: Contenuto scrollabile
           Expanded(child: _buildScrollableContent(colorScheme, columnWidth)),
         ],
       ),
     );
   }
 
-  /// Builds sticky header with operator names
+  // CHANGED: Header sticky con nomi operatori
   Widget _buildStickyHeader(
     final ColorScheme colorScheme,
     final double columnWidth,
@@ -735,16 +683,22 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     ),
     child: Row(
       children: [
+        // Timeline header spacer
         const SizedBox(width: _timelineWidth),
-        // CHANGED: Windows uses fixed width (no scroll), Android uses scroll if needed
-        if (kIsWindows)
-          // Windows: Fixed width columns
-          Expanded(
-            child: Row(
-              children: _operators
-                  .map(
-                    (final operator) => Expanded(
-                      child: Container(
+        // CHANGED: Operatori header con scroll sincronizzato
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (final notification) => true,
+            // Blocca notifiche
+            child: SingleChildScrollView(
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: Row(
+                children: _operators
+                    .map(
+                      (final operator) => Container(
+                        width: columnWidth,
                         decoration: BoxDecoration(
                           border: Border(
                             left: BorderSide(color: colorScheme.outlineVariant),
@@ -763,97 +717,57 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                           ),
                         ),
                       ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-        else
-          // Android: Scrollable columns
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (final notification) => true,
-              child: SingleChildScrollView(
-                controller: _horizontalScrollController,
-                scrollDirection: Axis.horizontal,
-                physics: const ClampingScrollPhysics(),
-                child: Row(
-                  children: _operators
-                      .map(
-                        (final operator) => Container(
-                          width: columnWidth,
-                          decoration: BoxDecoration(
-                            border: Border(
-                              left: BorderSide(
-                                color: colorScheme.outlineVariant,
-                              ),
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              operator.name,
-                              style: TextStyle(
-                                fontSize: kIsWindows ? 16 : 16.sp,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
+                    )
+                    .toList(),
               ),
             ),
           ),
+        ),
       ],
     ),
   );
 
-  /// Builds scrollable content with timeline and operator columns
+  // CHANGED: Contenuto scrollabile con timeline e colonne operatori
   Widget _buildScrollableContent(
     final ColorScheme colorScheme,
     final double columnWidth,
   ) => Row(
     children: [
+      // Timeline fissa
       _buildTimeline(colorScheme),
-      // CHANGED: Windows uses fixed width, Android scrolls if needed
-      if (kIsWindows)
-        Expanded(child: _buildOperatorColumns(colorScheme, columnWidth))
-      else
-        Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (final notification) {
-              if (notification is ScrollUpdateNotification) {
-                if (_horizontalScrollController.hasClients) {
-                  if ((_horizontalScrollController.position.pixels -
-                              notification.metrics.pixels)
-                          .abs() >
-                      1) {
-                    _horizontalScrollController.jumpTo(
-                      notification.metrics.pixels,
-                    );
-                  }
+      // Colonne operatori scrollabili
+      Expanded(
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (final notification) {
+            // Sincronizza scroll orizzontale header con contenuto
+            if (notification is ScrollUpdateNotification) {
+              if (_horizontalScrollController.hasClients) {
+                // Evita loop infinito controllando posizione
+                if ((_horizontalScrollController.position.pixels -
+                            notification.metrics.pixels)
+                        .abs() >
+                    1) {
+                  _horizontalScrollController.jumpTo(
+                    notification.metrics.pixels,
+                  );
                 }
               }
-              return false;
-            },
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const ClampingScrollPhysics(),
-              child: SizedBox(
-                width: columnWidth * _operators.length,
-                child: _buildOperatorColumns(colorScheme, columnWidth),
-              ),
+            }
+            return false;
+          },
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            child: SizedBox(
+              width: columnWidth * _operators.length,
+              child: _buildOperatorColumns(colorScheme, columnWidth),
             ),
           ),
         ),
+      ),
     ],
   );
 
-  /// Builds the time indicator column on the left
   Widget _buildTimeline(final ColorScheme colorScheme) {
     const totalMinutes = (_endHour - _startHour) * 60;
     final totalSlots =
@@ -918,7 +832,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Determines if a time label should be shown based on granularity
   bool _shouldShowTimeLabel(final int minute) => switch (_granularity) {
     SlotGranularity.minutes30 => minute == 0 || minute == 30,
     SlotGranularity.minutes15 => minute == 0 || minute == 30,
@@ -926,7 +839,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     SlotGranularity.minutes5 => minute % 15 == 0,
   };
 
-  /// Builds all operator columns with appointments and time slots
   Widget _buildOperatorColumns(
     final ColorScheme colorScheme,
     final double columnWidth,
@@ -937,7 +849,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
 
     return Stack(
       children: [
-        // Background grid
+        // Grid background
         RepaintBoundary(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -960,45 +872,28 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
             ),
           ),
         ),
-        // Operator columns with appointments
-        // CHANGED: Windows uses Expanded, Android uses fixed widths
-        if (kIsWindows)
-          Row(
-            children: _operators
-                .map(
-                  (final operator) => Expanded(
-                    child: _buildOperatorColumn(
-                      operator,
-                      colorScheme,
-                      columnWidth,
-                    ),
+        // Colonne operatori con appuntamenti
+        Row(
+          children: _operators
+              .map(
+                (final operator) => SizedBox(
+                  width: columnWidth,
+                  child: _buildOperatorColumn(
+                    operator,
+                    colorScheme,
+                    columnWidth,
                   ),
-                )
-                .toList(),
-          )
-        else
-          Row(
-            children: _operators
-                .map(
-                  (final operator) => SizedBox(
-                    width: columnWidth,
-                    child: _buildOperatorColumn(
-                      operator,
-                      colorScheme,
-                      columnWidth,
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        // Current time indicator
+                ),
+              )
+              .toList(),
+        ),
+        // Indicatore tempo corrente
         if (_isSameDay(_currentTime, _selectedDay))
           _buildCurrentTimeIndicator(colorScheme),
       ],
     );
   }
 
-  /// Builds a single operator column with time slots and appointments
   Widget _buildOperatorColumn(
     final Operator operator,
     final ColorScheme colorScheme,
@@ -1012,15 +907,10 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
         )
         .toList();
 
-    // CHANGED: On Windows, recalculate actual column width from context
-    final actualColumnWidth = kIsWindows
-        ? (MediaQuery.of(context).size.width - _timelineWidth - 32) /
-              _operators.length
-        : columnWidth;
-
+    // CHANGED: Calcola layout overlap con larghezze corrette
     final appointmentLayouts = _calculateOverlapLayouts(
       operatorAppointments,
-      actualColumnWidth,
+      columnWidth,
     );
 
     return RepaintBoundary(
@@ -1030,7 +920,9 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
         ),
         child: Stack(
           children: [
+            // Slots per tap-to-create
             _buildTimeSlots(operator, colorScheme),
+            // Appuntamenti con gestione overlap
             ...appointmentLayouts.map(
               (final layout) => _buildAppointmentCard(
                 layout.appointment,
@@ -1045,8 +937,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Calculates layout for overlapping appointments
-  /// CHANGED: Improved overlap detection considering pasted appointments
+  // CHANGED: Calcolo overlap migliorato che considera solo appuntamenti sovrapposti
   List<AppointmentLayout> _calculateOverlapLayouts(
     final List<Appointment> appointments,
     final double availableWidth,
@@ -1058,12 +949,14 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     final layouts = <AppointmentLayout>[];
 
     for (final apt in appointments) {
+      // Trova tutti gli appuntamenti che si sovrappongono con questo
       final overlapping = appointments.where((final other) {
         if (other.id == apt.id) return false;
         return _appointmentsOverlap(apt, other);
       }).toList();
 
       if (overlapping.isEmpty) {
+        // Nessun overlap: usa tutta la larghezza disponibile
         layouts.add(
           AppointmentLayout(
             appointment: apt,
@@ -1074,6 +967,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
           ),
         );
       } else {
+        // C'è overlap: calcola posizione e larghezza
         overlapping
           ..add(apt)
           ..sort((final a, final b) => a.startTime.compareTo(b.startTime));
@@ -1104,12 +998,9 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     return layouts;
   }
 
-  /// Checks if two appointments overlap in time
   bool _appointmentsOverlap(final Appointment a, final Appointment b) =>
       a.startTime.isBefore(b.endTime) && a.endTime.isAfter(b.startTime);
 
-  /// Builds interactive time slots for creating new appointments
-  /// CHANGED: Windows adds right-click paste support on empty slots
   Widget _buildTimeSlots(
     final Operator operator,
     final ColorScheme colorScheme,
@@ -1119,7 +1010,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
         (totalMinutes ~/ _granularity.minutes) + (60 ~/ _granularity.minutes);
 
     return ListView.builder(
-      // CHANGED: Rimuovi controller qui - usa solo physics
       controller: _verticalScrollController,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: slotCount,
@@ -1152,25 +1042,12 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
           },
           builder: (final context, final candidateData, final rejectedData) =>
               GestureDetector(
-                onTap: () {
-                  _showCreateAppointmentDialog(operator, slotTime);
-                  _resetInactivityTimer(); // CHANGED: Reset timer on interaction
-                },
+                onTap: () => _showCreateAppointmentDialog(operator, slotTime),
                 onLongPress: () {
-                  _resetInactivityTimer(); // CHANGED: Reset timer on interaction
                   if (_clipboardAppointment != null) {
                     _pasteAppointment(operator, slotTime);
                   }
                 },
-                // CHANGED: Windows right-click to paste on empty slots
-                onSecondaryTap: kIsWindows
-                    ? () {
-                        _resetInactivityTimer();
-                        if (_clipboardAppointment != null) {
-                          _showPasteConfirmation(operator, slotTime);
-                        }
-                      }
-                    : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   curve: Curves.easeOut,
@@ -1199,8 +1076,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Builds an appointment card with drag and interaction capabilities
-  /// CHANGED: Added proper drag delay and haptic feedback for Android
   Widget _buildAppointmentCard(
     final Appointment apt,
     final Operator operator,
@@ -1213,176 +1088,69 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
         (duration.inMinutes / _granularity.minutes) * _granularity.slotHeight -
         (_appointmentVerticalPadding * 2);
 
+    // CHANGED: Usa layout calcolato per posizione e larghezza
     final leftOffset = layout?.leftOffset ?? _appointmentHorizontalPadding;
     final width = layout?.width ?? 180.0;
 
-    Timer? longPressTimer;
-    var shouldStartDrag = false;
-
-    // CHANGED: Proper drag implementation with delay
     return Positioned(
       top: startOffset + _appointmentVerticalPadding,
       left: leftOffset,
       width: width,
       height: height,
-      child: GestureDetector(
-        onTap: () {
-          _showAppointmentDetailsDialog(apt, operator);
-          _resetInactivityTimer(); // CHANGED: Reset timer on interaction
-        },
-        // CHANGED: Windows right-click for context menu
-        onLongPressStart: !kIsWindows
-            ? (final details) {
-                _resetInactivityTimer();
-                shouldStartDrag = false;
-
-                // Wait for drag delay, if user holds longer, start drag
-                longPressTimer = Timer(
-                  const Duration(milliseconds: _dragStartDelay),
-                  () {
-                    shouldStartDrag = true;
-                    HapticFeedback.mediumImpact();
-                    _startDragging(apt, operator, width, height, details);
-                  },
-                );
-              }
-            : null,
-        onLongPressEnd: !kIsWindows
-            ? (final details) {
-                longPressTimer?.cancel();
-                // If timer didn't complete, show context menu instead
-                if (!shouldStartDrag) {
-                  _showAppointmentContextMenu(apt, operator);
-                }
-              }
-            : null,
-        onLongPressCancel: !kIsWindows
-            ? () {
-                longPressTimer?.cancel();
-              }
-            : null,
-        child: kIsWindows
-            ? Draggable<Appointment>(
-                data: apt,
-                feedback: Material(
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: width,
-                    height: height,
-                    decoration: BoxDecoration(
-                      color: apt.color ?? operator.color,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Symbols.drag_indicator_rounded,
-                        color: colorScheme.onPrimary,
-                        size: kIsWindows ? 32 : 28.sp,
-                      ),
-                    ),
-                  ),
-                ),
-                childWhenDragging: Opacity(
-                  opacity: 0.3,
-                  child: _buildAppointmentCardContent(
-                    apt,
-                    operator,
-                    colorScheme,
-                    height,
-                  ),
-                ),
-                onDragStarted: _resetInactivityTimer,
-                child: _buildAppointmentCardContent(
-                  apt,
-                  operator,
-                  colorScheme,
-                  height,
-                ),
-              )
-            : _buildAppointmentCardContent(apt, operator, colorScheme, height),
-      ),
-    );
-  }
-
-  // CHANGED: New method to start dragging with proper feedback
-  void _startDragging(
-    final Appointment apt,
-    final Operator operator,
-    final double width,
-    final double height,
-    final LongPressStartDetails details,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-
-    if (overlay == null) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.transparent,
-      builder: (final context) => Stack(
-        children: [
-          Positioned(
-            left: details.globalPosition.dx - width / 2,
-            top: details.globalPosition.dy - height / 2,
-            child: Draggable<Appointment>(
-              data: apt,
-              feedback: Material(
-                elevation: 8,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: apt.color ?? operator.color,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Symbols.drag_indicator_rounded,
-                      color: colorScheme.onPrimary,
-                      size: 28.sp,
-                    ),
-                  ),
-                ),
-              ),
-              childWhenDragging: const SizedBox.shrink(),
-              onDragEnd: (_) {
-                Navigator.of(context).pop();
-                setState(() {});
-              },
-              child: Material(
-                elevation: 8,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: apt.color ?? operator.color,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Symbols.drag_indicator_rounded,
-                      color: colorScheme.onPrimary,
-                      size: 28.sp,
-                    ),
-                  ),
-                ),
+      child: LongPressDraggable<Appointment>(
+        data: apt,
+        feedback: Material(
+          elevation: 8,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: apt.color ?? operator.color,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Icon(
+                Symbols.drag_indicator_rounded,
+                color: colorScheme.onPrimary,
+                size: kIsWindows ? 32 : 28.sp,
               ),
             ),
           ),
-        ],
+        ),
+        childWhenDragging: Opacity(
+          opacity: 0.3,
+          child: _buildAppointmentCardContent(
+            apt,
+            operator,
+            colorScheme,
+            height,
+          ),
+        ),
+        onDragStarted: () {
+          if (mounted) {
+            // Feedback aptico opzionale
+          }
+        },
+        child: GestureDetector(
+          onTap: () => _showAppointmentDetailsDialog(apt, operator),
+          onSecondaryTap: kIsWindows
+              ? () => _showAppointmentContextMenu(apt, operator)
+              : null,
+          onLongPress: kIsWindows
+              ? null
+              : () => _showAppointmentContextMenu(apt, operator),
+          child: _buildAppointmentCardContent(
+            apt,
+            operator,
+            colorScheme,
+            height,
+          ),
+        ),
       ),
     );
-
-    setState(() {});
   }
 
-  /// Builds the visual content of an appointment card
   Widget _buildAppointmentCardContent(
     final Appointment apt,
     final Operator operator,
@@ -1441,7 +1209,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     ),
   );
 
-  /// Builds the current time indicator line
   Widget _buildCurrentTimeIndicator(final ColorScheme colorScheme) =>
       Positioned(
         top: _calculateTimeOffset(_currentTime),
@@ -1488,8 +1255,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
   // DIALOGS & INTERACTIONS
   // ==========================================================================
 
-  /// Shows dialog to create a new appointment
-  /// TODO: Connect to repository to save appointments
+  // TODO: Connetti al tuo repository per salvare appuntamenti
   void _showCreateAppointmentDialog(
     final Operator operator,
     final DateTime slotTime,
@@ -1529,13 +1295,14 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                     ),
                     SizedBox(width: kIsWindows ? 12 : 8.w),
                     Text(
-                      'Nuovo Appuntamento', // TODO: localize
+                      'Nuovo Appuntamento',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                // Operator info
+
+                // Operatore
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -1550,7 +1317,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                       Icon(Symbols.person_rounded, color: operator.color),
                       const SizedBox(width: 8),
                       Text(
-                        'Operatore: ${operator.name}', // TODO: localize
+                        'Operatore: ${operator.name}',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: operator.color,
@@ -1560,7 +1327,8 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Start time picker
+
+                // Orario inizio
                 InkWell(
                   onTap: () async {
                     final time = await showTimePicker(
@@ -1581,7 +1349,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   },
                   child: InputDecorator(
                     decoration: const InputDecoration(
-                      labelText: 'Orario Inizio', // TODO: localize
+                      labelText: 'Orario Inizio',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Symbols.schedule_rounded),
                     ),
@@ -1589,11 +1357,12 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Duration dropdown
+
+                // Durata
                 DropdownButtonFormField<int>(
                   initialValue: durationMinutes,
                   decoration: const InputDecoration(
-                    labelText: 'Durata', // TODO: localize
+                    labelText: 'Durata',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Symbols.timer_rounded),
                   ),
@@ -1601,7 +1370,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                       .map(
                         (final minutes) => DropdownMenuItem(
                           value: minutes,
-                          child: Text('$minutes minuti'), // TODO: localize
+                          child: Text('$minutes minuti'),
                         ),
                       )
                       .toList(),
@@ -1612,47 +1381,48 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   },
                 ),
                 const SizedBox(height: 12),
-                // Client name input
+
+                // Nome cliente
                 TextField(
                   controller: clientNameController,
                   decoration: const InputDecoration(
-                    labelText: 'Nome Cliente', // TODO: localize
+                    labelText: 'Nome Cliente',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Symbols.person_rounded),
                   ),
                   textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: 12),
-                // Service input
+
+                // Servizio
                 TextField(
                   controller: serviceController,
                   decoration: const InputDecoration(
-                    labelText: 'Servizio', // TODO: localize
+                    labelText: 'Servizio',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Symbols.cut_rounded),
                   ),
                   textCapitalization: TextCapitalization.sentences,
                 ),
                 const SizedBox(height: 20),
-                // Actions
+
+                // Azioni
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Annulla'), // TODO: localize
+                      child: const Text('Annulla'),
                     ),
                     const SizedBox(width: 8),
                     FilledButton.icon(
                       icon: const Icon(Symbols.check_rounded),
-                      label: const Text('Salva'), // TODO: localize
+                      label: const Text('Salva'),
                       onPressed: () {
                         if (clientNameController.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Inserisci il nome del cliente',
-                              ), // TODO: localize
+                              content: Text('Inserisci il nome del cliente'),
                             ),
                           );
                           return;
@@ -1673,7 +1443,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                           _appointments.add(newAppointment);
                         });
 
-                        // TODO: Save to database
+                        // TODO: Salva nel database
                         // await ref.read(appointmentsRepositoryProvider)
                         //     .createAppointment(newAppointment);
 
@@ -1681,18 +1451,15 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text(
-                              'Appuntamento creato',
-                            ), // TODO: localize
+                            content: const Text('Appuntamento creato'),
                             action: SnackBarAction(
-                              label: 'Annulla', // TODO: localize
+                              label: 'Annulla',
                               onPressed: () {
                                 setState(() {
                                   _appointments.removeWhere(
                                     (final a) => a.id == newAppointment.id,
                                   );
                                 });
-                                // TODO: Delete from database
                               },
                             ),
                           ),
@@ -1709,9 +1476,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Shows dialog to view/edit appointment details
-  /// TODO: Connect to repository to update appointments
-  /// CHANGED: Fixed Expanded widget error by replacing Spacer with SizedBox
+  // TODO: Connetti al tuo repository per modificare appuntamenti
   void _showAppointmentDetailsDialog(
     final Appointment apt,
     final Operator operator,
@@ -1732,9 +1497,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 8),
-              const Expanded(
-                child: Text('Modifica Appuntamento'),
-              ), // TODO: localize
+              const Expanded(child: Text('Modifica Appuntamento')),
             ],
           ),
           content: SingleChildScrollView(
@@ -1742,7 +1505,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Operator info
+                // Operatore
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -1754,12 +1517,11 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                       Icon(Symbols.person_rounded, color: operator.color),
                       const SizedBox(width: 8),
                       Text('Operatore: ${operator.name}'),
-                      // TODO: localize
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Start time picker
+                // Orario inizio
                 InkWell(
                   onTap: () async {
                     final time = await showTimePicker(
@@ -1780,7 +1542,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   },
                   child: InputDecorator(
                     decoration: const InputDecoration(
-                      labelText: 'Orario Inizio', // TODO: localize
+                      labelText: 'Orario Inizio',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Symbols.schedule_rounded),
                     ),
@@ -1788,11 +1550,11 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Duration dropdown
+                // Durata
                 DropdownButtonFormField<int>(
                   initialValue: durationMinutes,
                   decoration: const InputDecoration(
-                    labelText: 'Durata', // TODO: localize
+                    labelText: 'Durata',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Symbols.timer_rounded),
                   ),
@@ -1800,7 +1562,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                       .map(
                         (final minutes) => DropdownMenuItem(
                           value: minutes,
-                          child: Text('$minutes minuti'), // TODO: localize
+                          child: Text('$minutes minuti'),
                         ),
                       )
                       .toList(),
@@ -1811,21 +1573,21 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   },
                 ),
                 const SizedBox(height: 12),
-                // Client name input
+                // Nome cliente
                 TextField(
                   controller: clientNameController,
                   decoration: const InputDecoration(
-                    labelText: 'Nome Cliente', // TODO: localize
+                    labelText: 'Nome Cliente',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Symbols.person_rounded),
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Service input
+                // Servizio
                 TextField(
                   controller: serviceController,
                   decoration: const InputDecoration(
-                    labelText: 'Servizio', // TODO: localize
+                    labelText: 'Servizio',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Symbols.cut_rounded),
                   ),
@@ -1834,10 +1596,9 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
             ),
           ),
           actions: [
-            // Delete button
             TextButton.icon(
               icon: const Icon(Symbols.delete_rounded),
-              label: const Text('Elimina'), // TODO: localize
+              label: const Text('Elimina'),
               onPressed: () {
                 Navigator.pop(context);
                 _deleteAppointment(apt);
@@ -1846,24 +1607,19 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),
             ),
-            // CHANGED: Replaced Spacer with SizedBox to fix Expanded error
-            const SizedBox(width: 8),
-            // Cancel button
+            const Spacer(),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Annulla'), // TODO: localize
+              child: const Text('Annulla'),
             ),
-            // Save button
             FilledButton.icon(
               icon: const Icon(Symbols.check_rounded),
-              label: const Text('Salva'), // TODO: localize
+              label: const Text('Salva'),
               onPressed: () {
                 if (clientNameController.text.trim().isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        'Inserisci il nome del cliente',
-                      ), // TODO: localize
+                      content: Text('Inserisci il nome del cliente'),
                     ),
                   );
                   return;
@@ -1885,16 +1641,14 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                   }
                 });
 
-                // TODO: Update in database
+                // TODO: Aggiorna nel database
                 // await ref.read(appointmentsRepositoryProvider)
                 //     .updateAppointment(_appointments[index]);
 
                 Navigator.pop(context);
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Appuntamento aggiornato'),
-                  ), // TODO: localize
+                  const SnackBar(content: Text('Appuntamento aggiornato')),
                 );
               },
             ),
@@ -1904,7 +1658,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  /// Shows context menu with appointment actions (copy, cut, paste, delete)
   void _showAppointmentContextMenu(
     final Appointment apt,
     final Operator operator,
@@ -1918,7 +1671,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
           children: [
             ListTile(
               leading: const Icon(Symbols.edit_rounded),
-              title: const Text('Modifica'), // TODO: localize
+              title: const Text('Modifica'),
               onTap: () {
                 Navigator.pop(context);
                 _showAppointmentDetailsDialog(apt, operator);
@@ -1926,7 +1679,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
             ),
             ListTile(
               leading: const Icon(Symbols.content_copy_rounded),
-              title: const Text('Copia'), // TODO: localize
+              title: const Text('Copia'),
               onTap: () {
                 Navigator.pop(context);
                 _copyAppointment(apt);
@@ -1934,7 +1687,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
             ),
             ListTile(
               leading: const Icon(Symbols.content_cut_rounded),
-              title: const Text('Taglia'), // TODO: localize
+              title: const Text('Taglia'),
               onTap: () {
                 Navigator.pop(context);
                 _cutAppointment(apt);
@@ -1943,7 +1696,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
             if (_clipboardAppointment != null)
               ListTile(
                 leading: const Icon(Symbols.content_paste_rounded),
-                title: const Text('Incolla qui'), // TODO: localize
+                title: const Text('Incolla qui'),
                 onTap: () {
                   Navigator.pop(context);
                   _pasteAppointment(operator, apt.startTime);
@@ -1956,7 +1709,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 color: Theme.of(context).colorScheme.error,
               ),
               title: Text(
-                'Elimina', // TODO: localize
+                'Elimina',
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               onTap: () {
@@ -1970,65 +1723,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
     );
   }
 
-  // CHANGED: New method for Windows right-click paste confirmation
-  /// Shows confirmation dialog for pasting appointment on Windows
-  void _showPasteConfirmation(
-    final Operator operator,
-    final DateTime slotTime,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      builder: (final context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Symbols.content_paste_rounded,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Incolla appuntamento?', // TODO: localize
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Operatore: ${operator.name}', // TODO: localize
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            Text(
-              'Orario: ${DateFormat('HH:mm').format(slotTime)}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Annulla'), // TODO: localize
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  icon: const Icon(Symbols.check_rounded),
-                  label: const Text('Incolla'), // TODO: localize
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _pasteAppointment(operator, slotTime);
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Handles dropping an appointment to a new time slot
-  /// TODO: Update in database
   void _handleAppointmentDrop(
     final Appointment apt,
     final Operator targetOperator,
@@ -2046,21 +1740,18 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
       }
     });
 
-    // TODO: Update in database
+    // TODO: Aggiorna nel database
     // await ref.read(appointmentsRepositoryProvider)
     //     .updateAppointment(_appointments[index]);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Appuntamento spostato per ${targetOperator.name}',
-        ), // TODO: localize
+        content: Text('Appuntamento spostato per ${targetOperator.name}'),
         duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  /// Copies appointment to clipboard
   void _copyAppointment(final Appointment apt) {
     setState(() {
       _clipboardAppointment = apt;
@@ -2070,31 +1761,29 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
       const SnackBar(
         content: Text(
           'Appuntamento copiato - Long press su uno slot per incollare',
-        ), // TODO: localize
+        ),
         duration: Duration(seconds: 3),
       ),
     );
   }
 
-  /// Cuts appointment to clipboard and removes from current position
-  /// TODO: Delete from database
   void _cutAppointment(final Appointment apt) {
     setState(() {
       _clipboardAppointment = apt;
       _appointments.removeWhere((final a) => a.id == apt.id);
     });
 
-    // TODO: Delete from database
+    // TODO: Elimina dal database
     // await ref.read(appointmentsRepositoryProvider).deleteAppointment(apt.id);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
           'Appuntamento tagliato - Long press su uno slot per incollare',
-        ), // TODO: localize
+        ),
         duration: const Duration(seconds: 3),
         action: SnackBarAction(
-          label: 'Annulla', // TODO: localize
+          label: 'Annulla',
           onPressed: () {
             setState(() {
               if (_clipboardAppointment != null) {
@@ -2102,16 +1791,12 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
                 _clipboardAppointment = null;
               }
             });
-            // TODO: Restore in database
           },
         ),
       ),
     );
   }
 
-  /// Pastes appointment from clipboard to new location
-  /// CHANGED: Clears clipboard after pasting and checks for overlaps
-  /// TODO: Save to database
   void _pasteAppointment(
     final Operator targetOperator,
     final DateTime targetTime,
@@ -2131,26 +1816,22 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
 
     setState(() {
       _appointments.add(newAppointment);
-      _clipboardAppointment = null; // CHANGED: Clear clipboard after paste
     });
 
-    // TODO: Save to database
+    // TODO: Salva nel database
     // await ref.read(appointmentsRepositoryProvider)
     //     .createAppointment(newAppointment);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Appuntamento incollato per ${targetOperator.name}',
-        ), // TODO: localize
+        content: Text('Appuntamento incollato per ${targetOperator.name}'),
         duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  /// Deletes an appointment with undo option
-  /// TODO: Delete from database
   void _deleteAppointment(final Appointment apt) {
+    // Salva per undo
     final deletedAppointment = apt;
     final deletedIndex = _appointments.indexOf(apt);
 
@@ -2158,14 +1839,14 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
       _appointments.removeWhere((final a) => a.id == apt.id);
     });
 
-    // TODO: Delete from database
+    // TODO: Elimina dal database
     // await ref.read(appointmentsRepositoryProvider).deleteAppointment(apt.id);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Appuntamento eliminato'), // TODO: localize
+        content: const Text('Appuntamento eliminato'),
         action: SnackBarAction(
-          label: 'Annulla', // TODO: localize
+          label: 'Annulla',
           onPressed: () {
             setState(() {
               if (deletedIndex >= 0 && deletedIndex <= _appointments.length) {
@@ -2175,7 +1856,7 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
               }
             });
 
-            // TODO: Restore in database
+            // TODO: Ripristina nel database
             // await ref.read(appointmentsRepositoryProvider)
             //     .createAppointment(deletedAppointment);
           },
@@ -2189,7 +1870,6 @@ class _AppointmentsAgendaState extends ConsumerState<AppointmentsAgenda>
 // EXTENSIONS
 // =============================================================================
 
-/// Extension for comparing DateTime objects
 extension DateTimeComparison on DateTime {
   bool isAtOrAfter(final DateTime other) =>
       isAfter(other) || isAtSameMomentAs(other);
