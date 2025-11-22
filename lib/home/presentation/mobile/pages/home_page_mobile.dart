@@ -18,7 +18,6 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   late final List<GlobalKey> _tabKeys;
   late final PageController _pageController;
   late final ScrollController _navScrollController;
-  late final List<Widget> _pages;
 
   //static final log = AppLogger.getLogger(name: 'HomeMobile');
 
@@ -31,11 +30,9 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
     _tabKeys = List.generate(AppTabs.values.length, (_) => GlobalKey());
     _pageController = PageController(initialPage: initialTabIndex);
     _navScrollController = ScrollController();
-    _pages = AppTabs.values.map((final tab) => tab.buildPage).toList();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(homeTabProvider.notifier).setIndex(initialTabIndex);
       _scrollActiveTabIntoView(duration: Duration.zero);
     });
   }
@@ -60,15 +57,23 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
 
     Scrollable.ensureVisible(
       context,
-      alignment: 0.5,
       duration: duration,
       curve: Curves.easeOutCubic,
+      alignment: 0.5,
     );
   }
 
   @override
   Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    ref.listen(homeTabProvider, (_, final next) {
+      if (_pageController.hasClients &&
+          _pageController.page?.round() != next.index) {
+        _pageController.jumpToPage(next.index);
+        _scrollActiveTabIntoView();
+      }
+    });
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
@@ -78,7 +83,7 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
         controller: _pageController,
         physics: const BouncingScrollPhysics(),
         onPageChanged: _onPageChanged,
-        children: _pages,
+        children: AppTabs.values.map((final tab) => tab.buildPage).toList(),
       ),
       bottomNavigationBar: SafeArea(
         child: BottomNav(

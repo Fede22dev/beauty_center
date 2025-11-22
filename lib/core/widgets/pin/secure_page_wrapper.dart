@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../security/pin_lock_provider.dart';
+import '../../providers/pin_lock_provider.dart';
 import 'pin_lock_screen.dart';
 
 class SecurePageWrapper extends ConsumerWidget {

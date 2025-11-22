@@ -25,7 +25,10 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
 
     final initialTabIndex = AppTabs.defaultTab.index;
 
-    _railController = SidebarXController(selectedIndex: initialTabIndex);
+    _railController = SidebarXController(
+      selectedIndex: initialTabIndex,
+      extended: true,
+    );
     _railController.addListener(_onRailSelectionChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -43,13 +46,23 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
     super.dispose();
   }
 
-  void _onRailSelectionChanged() => ref
-      .read(homeTabProvider.notifier)
-      .setIndex(_railController.selectedIndex);
+  void _onRailSelectionChanged() {
+    if (ref.read(homeTabProvider).index != _railController.selectedIndex) {
+      ref
+          .read(homeTabProvider.notifier)
+          .setIndex(_railController.selectedIndex);
+    }
+  }
 
   @override
   Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    ref.listen(homeTabProvider, (_, final next) {
+      if (_railController.selectedIndex != next.index) {
+        _railController.selectIndex(next.index);
+      }
+    });
 
     return Scaffold(
       body: Column(

@@ -1,4 +1,6 @@
-import 'package:beauty_center/core/connectivity/connectivity_repository.dart';
+import 'dart:async';
+
+import 'package:beauty_center/core/connectivity/connectivity_provider.dart';
 import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
 import 'package:beauty_center/core/widgets/custom_snackbar.dart';
 import 'package:dio/dio.dart';
@@ -21,7 +23,7 @@ class UpdateService {
   static const _repoOwner = 'Fede22dev';
   static const _repoName = 'beauty_center';
   static const _apiBaseUrl = 'https://api.github.com/repos';
-  static const _connectionTimeout = Duration(seconds: 10);
+  static const _connectionTimeout = Duration(seconds: 5);
 
   // Cache current version to avoid multiple package info queries
   static String? _cachedCurrentVersion;
@@ -152,14 +154,14 @@ class _HomeLoadingScreenState extends ConsumerState<HomeLoadingScreen> {
   @override
   void initState() {
     super.initState();
-    _initialize();
+
+    Future.microtask(_initialize);
   }
 
   /// Initializes the screen and checks for updates if online
   Future<void> _initialize() async {
     try {
-      final isOffline =
-          await ConnectivityRepository.instance.isOfflineStream.first;
+      final isOffline = ref.read(isConnectionUnusableProvider);
 
       if (!mounted) return;
 

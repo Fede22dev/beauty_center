@@ -6,11 +6,11 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/tabs/app_tabs.dart';
-import '../../../../core/widgets/error_view.dart';
 import '../providers/settings_provider.dart';
-import '../widgets/sections/settings_cabins.dart';
-import '../widgets/sections/settings_operators.dart';
-import '../widgets/sections/settings_work_hours.dart';
+import '../widgets/sections/settings_cabins_section.dart';
+import '../widgets/sections/settings_operators_section.dart';
+import '../widgets/sections/settings_work_hours_section.dart';
+import '../widgets/settings_error_view.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -35,8 +35,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     super.initState();
     _scrollController = ScrollController();
     _scrollbarThickness = kIsWindows ? 8.0 : 0.0;
-
-    Future.microtask(() => ref.read(settingsSyncManagerProvider));
   }
 
   @override
@@ -58,7 +56,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     if (cabinsAsync.hasError ||
         operatorsAsync.hasError ||
         workHoursAsync.hasError) {
-      return ErrorView(
+      return SettingsErrorView(
         error:
             (cabinsAsync.error ?? operatorsAsync.error ?? workHoursAsync.error)
                 .toString(),
@@ -87,10 +85,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     // Scrollbar visibility management (Windows only)
     if (_scrollbarThickness > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         final isNeeded =
             _scrollController.hasClients &&
             _scrollController.position.maxScrollExtent > 0;
-        if (isNeeded != _isScrollbarNeeded && mounted) {
+        if (isNeeded != _isScrollbarNeeded) {
           setState(() => _isScrollbarNeeded = isNeeded);
         }
       });
@@ -109,6 +108,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
           interactive: kIsWindows,
           child: SingleChildScrollView(
             controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
             child: AnimatedPadding(
               duration: kDefaultAppAnimationsDuration,
               curve: Curves.easeOutCubic,
@@ -122,11 +122,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
               child: Column(
                 children: [
                   SizedBox(height: kIsWindows ? 8 : 8.h),
-                  CabinsSection(cabins: cabins),
+                  SettingsCabinsSection(cabins: cabins),
                   SizedBox(height: kIsWindows ? 8 : 8.h),
-                  OperatorsSection(operators: operators),
+                  SettingsOperatorsSection(operators: operators),
                   SizedBox(height: kIsWindows ? 8 : 8.h),
-                  WorkHoursSection(workHours: workHours),
+                  SettingsWorkHoursSection(workHours: workHours),
                   SizedBox(
                     height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
                   ),

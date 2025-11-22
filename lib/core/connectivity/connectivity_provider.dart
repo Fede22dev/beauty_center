@@ -2,17 +2,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'connectivity_repository.dart';
 
-/// Singleton repository
-final _connectivityRepositoryProvider = Provider<ConnectivityRepository>(
-  (final ref) => ConnectivityRepository.instance,
-);
-
-final isOfflineStreamProvider = StreamProvider<bool>((final ref) {
-  final repo = ref.watch(_connectivityRepositoryProvider);
-  return repo.isOfflineStream;
+final connectivityRepositoryProvider = Provider<ConnectivityRepository>((
+  final ref,
+) {
+  final repo = ConnectivityRepository();
+  ref.onDispose(repo.dispose);
+  return repo;
 });
 
-final isOfflineProvider = Provider<bool>((final ref) {
-  final asyncValue = ref.watch(isOfflineStreamProvider);
-  return asyncValue.value ?? false;
+final connectionQualityStreamProvider = StreamProvider<ConnectionQuality>((
+  final ref,
+) {
+  final repo = ref.watch(connectivityRepositoryProvider);
+  return repo.connectionQualityStream;
+});
+
+final connectionQualityProvider = Provider<ConnectionQuality>((final ref) {
+  final asyncValue = ref.watch(connectionQualityStreamProvider);
+  return asyncValue.value ?? ConnectionQuality.offline;
+});
+
+final isConnectionUnusableProvider = Provider<bool>((final ref) {
+  final quality = ref.watch(connectionQualityProvider);
+  return quality == ConnectionQuality.offline ||
+      quality == ConnectionQuality.poor;
 });

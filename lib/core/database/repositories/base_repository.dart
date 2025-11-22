@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../logging/app_logger.dart';
@@ -6,37 +7,50 @@ import '../supabase_schema.dart';
 
 /// Base repository implementing offline-first pattern with Supabase sync
 abstract class BaseRepository {
-  BaseRepository(this.db, {this.supabase});
+  BaseRepository({
+    required this.db,
+    required this.supabase,
+    required this.isOnline,
+  });
 
   final AppDatabase db;
   final SupabaseClient? supabase;
 
+  bool isOnline;
+
+  var _isSyncing = false;
+
   final log = AppLogger.getLogger(name: 'BaseRepository');
 
   final Map<String, RealtimeChannel> _channels = {};
-
-  /// Check if Supabase is available
-  bool get isOnline => supabase != null;
 
   /// Template method for bidirectional sync
   /// Call this when going online or after authentication
   Future<void> syncWithSupabase() async {
     if (!isOnline) return;
 
+    if (_isSyncing) {
+      log.fine('Sync already in progress. Skipping.');
+      return;
+    }
+
+    _isSyncing = true;
+
     try {
       // 1. Push local -> Supabase (if empty)
       await pushLocalToSupabase();
 
-      // 2. Pull Supabase -> local (source of truth)
+      // 2. Pull Supabase (source of truth) -> local
       await pullSupabaseToLocal();
 
       // 3. Start realtime sync
       startRealtimeSync();
 
       log.info('Sync completed successfully');
-    } catch (e) {
-      log.warning('Sync failed: $e');
-      // Don't propagate error - fallback to local data
+    } catch (e, stackTrace) {
+      log.warning('Sync failed', e, stackTrace);
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -54,21 +68,37 @@ abstract class BaseRepository {
     required final SupabaseTableSchema table,
     required final Future<void> Function(PostgresChangePayload) onEvent,
   }) {
-    if (!isOnline || _channels.containsKey(table.channelName)) {
-      log.fine('Channel ${table.channelName} already subscribed or offline');
+    if (!isOnline) {
+      log.fine('Cannot subscribe to ${table.channelName}: offline');
+      return;
+    }
+
+    if (_channels.containsKey(table.channelName)) {
+      log.fine('Channel ${table.channelName} already subscribed');
       return;
     }
 
     log.info('Subscribing to channel: ${table.channelName}');
 
-    _channels[table.channelName] = supabase!.channel(table.channelName)
-      ..onPostgresChanges(
-        event: PostgresChangeEvent.all,
-        schema: PostgresSchema.public,
-        table: table.tableName,
-        callback: onEvent,
-      )
-      ..subscribe();
+    try {
+      log.info('Subscribing to channel: ${table.channelName}');
+
+      final channel = supabase!
+          .channel(table.channelName)
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: PostgresSchema.public,
+            table: table.tableName,
+            callback: onEvent,
+          )
+          .subscribe();
+
+      _channels[table.channelName] = channel;
+    } catch (e, stackTrace) {
+      log.warning('Failed to subscribe to ${table.channelName}', e, stackTrace);
+      // Remove from map if subscribe failed
+      _channels.remove(table.channelName);
+    }
   }
 
   /// Start realtime sync - implement in subclasses
@@ -80,9 +110,9 @@ abstract class BaseRepository {
 
     log.info('Stopping ${_channels.length} realtime channels');
 
-    for (final channel in _channels.values) {
-      await channel.unsubscribe();
-    }
+    await Future.wait(
+      _channels.values.map((final channel) => channel.unsubscribe()),
+    );
     _channels.clear();
   }
 
@@ -103,9 +133,15 @@ abstract class BaseRepository {
 
       try {
         await supabase!.from(table.tableName).upsert(batch);
-        log.fine('Upserted batch ${i ~/ batchSize + 1}');
-      } catch (e) {
-        log.warning('Batch upsert failed for ${table.tableName}: $e');
+        log.fine(
+          'Upserted batch ${i ~/ batchSize + 1}/${(records.length / batchSize).ceil()}',
+        );
+      } catch (e, stackTrace) {
+        log.warning(
+          'Batch upsert failed for ${table.tableName}',
+          e,
+          stackTrace,
+        );
         // Continue with next batch instead of failing completely
       }
     }
@@ -119,26 +155,13 @@ abstract class BaseRepository {
       final response = await supabase!.from(table.tableName).select().limit(1);
 
       return response.isEmpty;
-    } catch (e) {
-      log.warning('Failed to check if ${table.tableName} is empty: $e');
+    } catch (e, stackTrace) {
+      log.warning(
+        'Failed to check if ${table.tableName} is empty',
+        e,
+        stackTrace,
+      );
       return false;
-    }
-  }
-
-  /// Get count of records in Supabase table
-  Future<int> getSupabaseTableCount(final SupabaseTableSchema table) async {
-    if (!isOnline) return 0;
-
-    try {
-      final response = await supabase!
-          .from(table.tableName)
-          .select()
-          .count(CountOption.exact);
-
-      return response.count;
-    } catch (e) {
-      log.warning('Failed to get count for ${table.tableName}: $e');
-      return 0;
     }
   }
 
@@ -158,9 +181,15 @@ abstract class BaseRepository {
 
       try {
         await supabase!.from(table.tableName).delete().inFilter('id', batch);
-        log.fine('Deleted batch ${i ~/ batchSize + 1}');
-      } catch (e) {
-        log.warning('Batch delete failed for ${table.tableName}: $e');
+        log.fine(
+          'Deleted batch ${i ~/ batchSize + 1}/${(ids.length / batchSize).ceil()}',
+        );
+      } catch (e, stackTrace) {
+        log.warning(
+          'Batch delete failed for ${table.tableName}',
+          e,
+          stackTrace,
+        );
       }
     }
   }
@@ -169,8 +198,22 @@ abstract class BaseRepository {
   /// Use this for fire-and-forget sync operations
   void syncAsync(final Future<void> Function() operation) {
     if (!isOnline) return;
+
     operation().catchError((final Object e) {
-      log.warning('Async sync operation failed: $e');
+      log.warning('Async sync operation failed', e);
     });
+  }
+
+  /// Helper to get Last Sync Time
+  Future<DateTime?> getLastSyncTime(final String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final iso = prefs.getString(key);
+    return iso != null ? DateTime.parse(iso).toUtc() : null;
+  }
+
+  /// Helper to save Last Sync Time
+  Future<void> updateLastSyncTime(final String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, DateTime.now().toUtc().toIso8601String());
   }
 }

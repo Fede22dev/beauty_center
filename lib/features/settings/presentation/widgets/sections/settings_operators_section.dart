@@ -10,13 +10,13 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../../core/connectivity/connectivity_provider.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/app_database.dart';
-import '../../../../../core/supabase/supabase_auth_provider.dart';
+import '../../../../../core/providers/supabase_auth_provider.dart';
 import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
 import '../../providers/settings_provider.dart';
 
-class OperatorsSection extends ConsumerWidget {
-  const OperatorsSection({required this.operators, super.key});
+class SettingsOperatorsSection extends ConsumerWidget {
+  const SettingsOperatorsSection({required this.operators, super.key});
 
   final List<Operator> operators;
 
@@ -24,7 +24,7 @@ class OperatorsSection extends ConsumerWidget {
   Widget build(final BuildContext context, final WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final isOffline = ref.watch(isOfflineProvider);
+    final isOffline = ref.watch(isConnectionUnusableProvider);
     final isDisconnectedSup = ref.watch(supabaseAuthProvider).isDisconnected;
     final actions = ref.read(settingsActionsProvider);
 

@@ -1,4 +1,4 @@
-import 'app_constants.dart';
+import '../../constants/app_constants.dart';
 
 DateTime easterCalculator(final int year) {
   final a = year % 19;

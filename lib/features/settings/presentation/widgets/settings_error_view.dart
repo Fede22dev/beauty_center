@@ -3,16 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../constants/app_constants.dart';
-import '../logging/app_logger.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/logging/app_logger.dart';
 
-class ErrorView extends StatelessWidget {
-  const ErrorView({required this.error, required this.onRetry, super.key});
+class SettingsErrorView extends StatelessWidget {
+  const SettingsErrorView({
+    required this.error,
+    required this.onRetry,
+    super.key,
+  });
 
   final String error;
   final VoidCallback onRetry;
 
-  static final log = AppLogger.getLogger(name: 'ErrorView');
+  static final log = AppLogger.getLogger(name: 'SettingsErrorView');
 
   @override
   Widget build(final BuildContext context) {

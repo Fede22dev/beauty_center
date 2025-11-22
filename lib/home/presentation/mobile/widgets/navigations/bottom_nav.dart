@@ -61,8 +61,8 @@ class BottomNav extends StatelessWidget {
                   child: LayoutBuilder(
                     builder: (final context, final constraints) => Scrollbar(
                       controller: navScrollController,
-                      thumbVisibility: true,
-                      thickness: 3.h,
+                      thumbVisibility: false,
+                      thickness: 0,
                       radius: Radius.circular(20.r),
                       child: SizedBox(
                         height: 45.h,

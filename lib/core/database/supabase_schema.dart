@@ -8,6 +8,7 @@ class PostgresSchema {
 
 /// Realtime channel names
 class RealtimeChannels {
+  static const clientsChanges = 'clients_changes';
   static const cabinsChanges = 'cabins_changes';
   static const operatorsChanges = 'operators_changes';
   static const workHoursChanges = 'work_hours_changes';
@@ -30,6 +31,31 @@ abstract class SupabaseTableSchema {
 // ========================================================================
 // TABLE SCHEMAS
 // ========================================================================
+
+/// Clients table schema
+class SupabaseClientsTable extends SupabaseTableSchema {
+  const SupabaseClientsTable._();
+
+  static const instance = SupabaseClientsTable._();
+
+  @override
+  String get tableName => 'clients';
+
+  @override
+  String get channelName => RealtimeChannels.clientsChanges;
+
+  // Column names
+  static const id = 'id';
+  static const firstName = 'first_name';
+  static const lastName = 'last_name';
+  static const phoneNumber = 'phone_number';
+  static const email = 'email';
+  static const birthDate = 'birth_date';
+  static const address = 'address';
+  static const notes = 'notes';
+  static const createdAt = 'created_at';
+  static const updatedAt = 'updated_at';
+}
 
 /// Cabins table schema
 class SupabaseCabinsTable extends SupabaseTableSchema {
@@ -92,6 +118,7 @@ class SupabaseWorkHoursTable extends SupabaseTableSchema {
 /// Helper class to access all table schemas
 /// Usage: SupabaseSchema.cabins.tableName
 abstract class SupabaseSchema {
+  static const clients = SupabaseClientsTable.instance;
   static const cabins = SupabaseCabinsTable.instance;
   static const operators = SupabaseOperatorsTable.instance;
   static const workHours = SupabaseWorkHoursTable.instance;

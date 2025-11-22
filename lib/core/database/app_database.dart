@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:uuid/uuid.dart';
 
 import '../constants/app_constants.dart';
 import '../logging/app_logger.dart';
@@ -12,6 +13,47 @@ import '../logging/app_logger.dart';
 part 'app_database.g.dart';
 
 // TABLES
+/// Clients table
+@TableIndex(name: 'idx_clients_names', columns: {#firstName, #lastName})
+@TableIndex(name: 'idx_clients_phone', columns: {#phoneNumber})
+@DataClassName('Client')
+class ClientsTable extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+
+  // Client first name
+  TextColumn get firstName => text().withLength(min: 1, max: 100)();
+
+  // Client last name
+  TextColumn get lastName => text().withLength(min: 1, max: 100)();
+
+  // Phone number with country code
+  TextColumn get phoneNumber => text().withLength(min: 10, max: 20)();
+
+  // Email address (optional)
+  TextColumn get email => text().withLength(min: 5, max: 255).nullable()();
+
+  // Client birth date (optional)
+  DateTimeColumn get birthDate => dateTime().nullable()();
+
+  // Physical address (optional)
+  TextColumn get address => text().nullable()();
+
+  // Optional notes
+  TextColumn get notes => text().nullable()();
+
+  // Record creation timestamp
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  // Last update timestamp
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>>? get uniqueKeys => [{phoneNumber}, {email}];
+}
+
 /// The ID is the cabin number
 @DataClassName('Cabin')
 class CabinsTable extends Table {
@@ -49,10 +91,12 @@ class WorkHoursTable extends Table {
 
   // Opening time
   IntColumn get startHr => integer()();
+
   IntColumn get startMin => integer()();
 
   // Closing time
   IntColumn get endHr => integer()();
+
   IntColumn get endMin => integer()();
 
   @override
@@ -60,7 +104,14 @@ class WorkHoursTable extends Table {
 }
 
 // DATABASE
-@DriftDatabase(tables: [CabinsTable, OperatorsTable, WorkHoursTable])
+@DriftDatabase(
+  tables: [
+    ClientsTable,
+    CabinsTable,
+    OperatorsTable,
+    WorkHoursTable,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   factory AppDatabase() => _instance;
 
@@ -78,26 +129,13 @@ class AppDatabase extends _$AppDatabase {
 
     if (!kIsWindows) {
       baseDir = Directory('/storage/emulated/0/Download');
+      await Permission.manageExternalStorage.request();
     }
 
     final dbDir = Directory(p.join(baseDir.path, 'database'));
 
     if (!dbDir.existsSync()) {
       dbDir.createSync(recursive: true);
-    }
-
-    if (!kIsWindows) {
-      final status = await Permission.manageExternalStorage.status;
-      if (status.isGranted) {
-        log.fine('Manage external storage permission already granted');
-      } else {
-        final result = await Permission.manageExternalStorage.request();
-        if (result.isGranted) {
-          log.info('Manage external storage permission granted after request');
-        } else {
-          log.warning('Manage external storage permission denied');
-        }
-      }
     }
 
     final file = File(p.join(dbDir.path, 'beauty_center.db'));

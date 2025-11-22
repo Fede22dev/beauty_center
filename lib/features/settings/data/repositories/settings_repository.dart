@@ -10,7 +10,11 @@ import '../../../../core/database/supabase_schema.dart';
 /// Repository for settings management (cabins, operators, work hours)
 /// Implements offline-first pattern with Supabase sync
 class SettingsRepository extends BaseRepository {
-  SettingsRepository(super.db, {required super.supabase});
+  SettingsRepository({
+    required super.db,
+    required super.supabase,
+    required super.isOnline,
+  });
 
   // ========================================================================
   // VALIDATION HELPERS
@@ -339,7 +343,7 @@ class SettingsRepository extends BaseRepository {
         SupabaseSchema.workHours,
       );
 
-      // Push local data only if Supabase is empty
+      // Push local default data only if Supabase is empty
       if (cabinsEmpty) {
         final localCabins = await getAllCabins();
         await batchUpsert(
@@ -353,7 +357,7 @@ class SettingsRepository extends BaseRepository {
               )
               .toList(),
         );
-        log.info('Pushed ${localCabins.length} cabins to Supabase');
+        log.info('Pushed default ${localCabins.length} cabins to Supabase');
       }
 
       if (operatorsEmpty) {
@@ -369,7 +373,9 @@ class SettingsRepository extends BaseRepository {
               )
               .toList(),
         );
-        log.info('Pushed ${localOperators.length} operators to Supabase');
+        log.info(
+          'Pushed default ${localOperators.length} operators to Supabase',
+        );
       }
 
       if (workHoursEmpty) {
@@ -381,10 +387,10 @@ class SettingsRepository extends BaseRepository {
           SupabaseWorkHoursTable.endHr: localWorkHours.endHr,
           SupabaseWorkHoursTable.endMin: localWorkHours.endMin,
         });
-        log.info('Pushed work hours to Supabase');
+        log.info('Pushed default work hours to Supabase');
       }
-    } catch (e) {
-      log.warning('Push to Supabase failed: $e');
+    } catch (e, stackTrace) {
+      log.warning('Push to Supabase failed', e, stackTrace);
     }
   }
 
@@ -393,67 +399,70 @@ class SettingsRepository extends BaseRepository {
     if (!isOnline) return;
 
     try {
-      // Pull cabins (Supabase is source of truth)
-      final cabinsData = await supabase!
-          .from(SupabaseSchema.cabins.tableName)
-          .select();
-      if (cabinsData.isNotEmpty) {
-        await db.delete(db.cabinsTable).go();
-        for (final cabin in cabinsData) {
+      await db.transaction(() async {
+        // Pull cabins (Supabase is source of truth)
+        final cabinsData = await supabase!
+            .from(SupabaseSchema.cabins.tableName)
+            .select();
+        if (cabinsData.isNotEmpty) {
+          await db.delete(db.cabinsTable).go();
+          for (final cabin in cabinsData) {
+            await db
+                .into(db.cabinsTable)
+                .insertOnConflictUpdate(
+                  CabinsTableCompanion.insert(
+                    id: Value(cabin[SupabaseCabinsTable.id] as int),
+                    color: cabin[SupabaseCabinsTable.color] as int,
+                  ),
+                );
+          }
+          log.info('Pulled ${cabinsData.length} cabins from Supabase');
+        }
+
+        // Pull operators
+        final operatorsData = await supabase!
+            .from(SupabaseSchema.operators.tableName)
+            .select();
+        if (operatorsData.isNotEmpty) {
+          await db.delete(db.operatorsTable).go();
+          for (final operator in operatorsData) {
+            await db
+                .into(db.operatorsTable)
+                .insertOnConflictUpdate(
+                  OperatorsTableCompanion.insert(
+                    id: Value(operator[SupabaseOperatorsTable.id] as int),
+                    name: operator[SupabaseOperatorsTable.name] as String,
+                  ),
+                );
+          }
+          log.info('Pulled ${operatorsData.length} operators from Supabase');
+        }
+
+        // Pull work hours
+        final workHoursData = await supabase!
+            .from(SupabaseSchema.workHours.tableName)
+            .select()
+            .eq(SupabaseWorkHoursTable.id, kIdWorkHours)
+            .maybeSingle();
+
+        if (workHoursData != null) {
           await db
-              .into(db.cabinsTable)
+              .into(db.workHoursTable)
               .insertOnConflictUpdate(
-                CabinsTableCompanion.insert(
-                  id: Value(cabin[SupabaseCabinsTable.id] as int),
-                  color: cabin[SupabaseCabinsTable.color] as int,
+                WorkHoursTableCompanion.insert(
+                  id: Value(workHoursData[SupabaseWorkHoursTable.id] as int),
+                  startHr: workHoursData[SupabaseWorkHoursTable.startHr] as int,
+                  startMin:
+                      workHoursData[SupabaseWorkHoursTable.startMin] as int,
+                  endHr: workHoursData[SupabaseWorkHoursTable.endHr] as int,
+                  endMin: workHoursData[SupabaseWorkHoursTable.endMin] as int,
                 ),
               );
+          log.info('Pulled work hours from Supabase');
         }
-        log.info('Pulled ${cabinsData.length} cabins from Supabase');
-      }
-
-      // Pull operators
-      final operatorsData = await supabase!
-          .from(SupabaseSchema.operators.tableName)
-          .select();
-      if (operatorsData.isNotEmpty) {
-        await db.delete(db.operatorsTable).go();
-        for (final operator in operatorsData) {
-          await db
-              .into(db.operatorsTable)
-              .insertOnConflictUpdate(
-                OperatorsTableCompanion.insert(
-                  id: Value(operator[SupabaseOperatorsTable.id] as int),
-                  name: operator[SupabaseOperatorsTable.name] as String,
-                ),
-              );
-        }
-        log.info('Pulled ${operatorsData.length} operators from Supabase');
-      }
-
-      // Pull work hours
-      final workHoursData = await supabase!
-          .from(SupabaseSchema.workHours.tableName)
-          .select()
-          .eq(SupabaseWorkHoursTable.id, kIdWorkHours)
-          .maybeSingle();
-
-      if (workHoursData != null) {
-        await db
-            .into(db.workHoursTable)
-            .insertOnConflictUpdate(
-              WorkHoursTableCompanion.insert(
-                id: Value(workHoursData[SupabaseWorkHoursTable.id] as int),
-                startHr: workHoursData[SupabaseWorkHoursTable.startHr] as int,
-                startMin: workHoursData[SupabaseWorkHoursTable.startMin] as int,
-                endHr: workHoursData[SupabaseWorkHoursTable.endHr] as int,
-                endMin: workHoursData[SupabaseWorkHoursTable.endMin] as int,
-              ),
-            );
-        log.info('Pulled work hours from Supabase');
-      }
-    } catch (e) {
-      log.warning('Pull from Supabase failed: $e');
+      });
+    } catch (e, stackTrace) {
+      log.warning('Pull from Supabase failed', e, stackTrace);
     }
   }
 
@@ -512,8 +521,8 @@ class SettingsRepository extends BaseRepository {
         case PostgresChangeEvent.all:
           throw UnimplementedError('PostgresChangeEvent.all not supported');
       }
-    } catch (e) {
-      log.warning('Failed to handle cabin change: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to handle cabin change', e, stackTrace);
     }
   }
 
@@ -547,8 +556,8 @@ class SettingsRepository extends BaseRepository {
         case PostgresChangeEvent.all:
           throw UnimplementedError('PostgresChangeEvent.all not supported');
       }
-    } catch (e) {
-      log.warning('Failed to handle operator change: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to handle operator change', e, stackTrace);
     }
   }
 
@@ -571,8 +580,8 @@ class SettingsRepository extends BaseRepository {
             );
         log.fine('Work hours synced from realtime');
       }
-    } catch (e) {
-      log.warning('Failed to handle work hours change: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to handle work hours change', e, stackTrace);
     }
   }
 
@@ -586,8 +595,8 @@ class SettingsRepository extends BaseRepository {
         SupabaseCabinsTable.id: id,
         SupabaseCabinsTable.color: color,
       });
-    } catch (e) {
-      log.warning('Failed to sync cabin $id to Supabase: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to sync cabin $id to Supabase', e, stackTrace);
     }
   }
 
@@ -597,8 +606,8 @@ class SettingsRepository extends BaseRepository {
           ?.from(SupabaseSchema.cabins.tableName)
           .delete()
           .eq(SupabaseCabinsTable.id, id);
-    } catch (e) {
-      log.warning('Failed to delete cabin $id from Supabase: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to delete cabin $id from Supabase', e, stackTrace);
     }
   }
 
@@ -608,8 +617,8 @@ class SettingsRepository extends BaseRepository {
         SupabaseOperatorsTable.id: id,
         SupabaseOperatorsTable.name: name,
       });
-    } catch (e) {
-      log.warning('Failed to sync operator $id to Supabase: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to sync operator $id to Supabase', e, stackTrace);
     }
   }
 
@@ -619,8 +628,8 @@ class SettingsRepository extends BaseRepository {
           ?.from(SupabaseSchema.operators.tableName)
           .delete()
           .eq(SupabaseOperatorsTable.id, id);
-    } catch (e) {
-      log.warning('Failed to delete operator $id from Supabase: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to delete operator $id from Supabase', e, stackTrace);
     }
   }
 
@@ -638,8 +647,8 @@ class SettingsRepository extends BaseRepository {
             SupabaseWorkHoursTable.endMin: endTime.minute,
           })
           .eq(SupabaseWorkHoursTable.id, kIdWorkHours);
-    } catch (e) {
-      log.warning('Failed to sync work hours to Supabase: $e');
+    } catch (e, stackTrace) {
+      log.warning('Failed to sync work hours to Supabase', e, stackTrace);
     }
   }
 }

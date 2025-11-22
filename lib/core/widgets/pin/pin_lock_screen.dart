@@ -7,7 +7,7 @@ import 'package:pinput/pinput.dart';
 
 import '../../config/app_secrets.dart';
 import '../../constants/app_constants.dart';
-import '../../security/pin_lock_provider.dart';
+import '../../providers/pin_lock_provider.dart';
 
 class PinLockScreen extends ConsumerStatefulWidget {
   const PinLockScreen({this.pageColor, super.key});
@@ -22,17 +22,9 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
   late final TextEditingController _pinController;
   late final FocusNode _focusNode;
   late final int _pinLength;
-  late Color _pageColor;
+
   String? _errorMessage;
   var _isVerifying = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _pageColor =
-        widget.pageColor ??
-        Theme.of(context).colorScheme.surfaceContainerHighest;
-  }
 
   @override
   void initState() {
@@ -40,10 +32,6 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
     _pinController = TextEditingController();
     _focusNode = FocusNode();
     _pinLength = AppSecrets.adminPin.length;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
   }
 
   @override
@@ -58,7 +46,6 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
 
     setState(() {
       _isVerifying = true;
-      _errorMessage = null;
     });
 
     await Future<void>.delayed(100.ms);
@@ -70,26 +57,31 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
     }
 
     setState(() {
-      _errorMessage = 'PIN non valido'; // TODO localize
+      _errorMessage = 'PIN non valido';
       _isVerifying = false;
     });
 
     await Future<void>.delayed(100.ms);
-    if (!mounted) return;
-
-    _pinController.clear();
+    if (mounted && _pinController.text.isNotEmpty) {
+      _pinController.clear();
+      _focusNode.requestFocus();
+    }
   }
 
   @override
   Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final effectivePageColor =
+        widget.pageColor ??
+        Theme.of(context).colorScheme.surfaceContainerHighest;
+
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              _pageColor.withValues(alpha: 0.25),
+              effectivePageColor.withValues(alpha: 0.25),
               colorScheme.primary.withValues(alpha: 0.25),
             ],
             begin: Alignment.topLeft,
@@ -159,7 +151,7 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
 
   Widget _buildTitle() =>
       Text(
-            'Inserisci il PIN admin', // TODO localize
+            'Inserisci il PIN admin',
             style: TextStyle(
               fontSize: kIsWindows ? 20 : 20.sp,
               fontWeight: FontWeight.bold,
@@ -252,6 +244,13 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
             focusedPinTheme: focusedPinTheme,
             submittedPinTheme: submittedPinTheme,
             errorPinTheme: _errorMessage != null ? errorPinTheme : null,
+            onChanged: (final value) {
+              if (_errorMessage != null) {
+                setState(() {
+                  _errorMessage = null;
+                });
+              }
+            },
             onCompleted: _onPinCompleted,
             enabled: !_isVerifying,
             obscureText: true,
@@ -332,7 +331,7 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
                   ],
                 ),
               )
-              .animate()
+              .animate(key: ValueKey(_errorMessage))
               .fadeIn(
                 duration: kDefaultAppAnimationsDuration,
                 curve: Curves.easeOutCubic,

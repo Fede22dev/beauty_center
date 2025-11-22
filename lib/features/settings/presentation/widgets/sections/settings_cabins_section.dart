@@ -1,6 +1,6 @@
 import 'package:beauty_center/core/database/extensions/db_models_extensions.dart';
 import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
-import 'package:beauty_center/core/supabase/supabase_auth_provider.dart';
+import 'package:beauty_center/core/providers/supabase_auth_provider.dart';
 import 'package:beauty_center/core/tabs/app_tabs.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
@@ -15,8 +15,8 @@ import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
 import '../../providers/settings_provider.dart';
 
-class CabinsSection extends ConsumerWidget {
-  const CabinsSection({required this.cabins, super.key});
+class SettingsCabinsSection extends ConsumerWidget {
+  const SettingsCabinsSection({required this.cabins, super.key});
 
   final List<Cabin> cabins;
 
@@ -24,7 +24,7 @@ class CabinsSection extends ConsumerWidget {
   Widget build(final BuildContext context, final WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final isOffline = ref.watch(isOfflineProvider);
+    final isOffline = ref.watch(isConnectionUnusableProvider);
     final isDisconnectedSup = ref.watch(supabaseAuthProvider).isDisconnected;
     final actions = ref.read(settingsActionsProvider);
 

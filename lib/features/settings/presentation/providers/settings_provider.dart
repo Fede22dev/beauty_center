@@ -3,28 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/connectivity/connectivity_provider.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/supabase/supabase_auth_provider.dart';
+import '../../../../core/database/providers/app_database_provider.dart';
+import '../../../../core/providers/background_provider.dart';
+import '../../../../core/providers/supabase_auth_provider.dart';
 import '../../data/repositories/settings_repository.dart';
 
 // ========================================================================
 // CORE PROVIDERS
 // ========================================================================
 
-/// Database instance provider (Singleton)
-final appDatabaseProvider = Provider<AppDatabase>((final ref) {
-  final db = AppDatabase();
-  ref.onDispose(db.close);
-  return db;
-});
-
 /// Settings repository with automatic client management
 final settingsRepositoryProvider = Provider<SettingsRepository>((final ref) {
   final db = ref.watch(appDatabaseProvider);
-
-  // Use convenience provider for client
   final supabase = ref.watch(supabaseClientProvider);
 
-  final repo = SettingsRepository(db, supabase: supabase);
+  final supabaseAuthState = ref.watch(supabaseAuthProvider);
+  final isOffline = ref.watch(isConnectionUnusableProvider);
+  final isInForeground = ref.watch(appIsInForegroundProvider);
+
+  final isOnline =
+      !isOffline && supabaseAuthState.isConnected && isInForeground;
+
+  final repo = SettingsRepository(
+    db: db,
+    supabase: supabase,
+    isOnline: isOnline,
+  );
 
   // Automatic cleanup
   ref.onDispose(() async {
@@ -109,7 +113,25 @@ class SettingsActions {
 }
 
 // ========================================================================
-// Sync manager
+// SYNC STATE MANAGEMENT
+// ========================================================================
+
+/// Notifier to track sync state
+class SettingsSyncNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void markAsSynced() => state = true;
+
+  void markAsUnsynced() => state = false;
+}
+
+final _settingsSyncStateProvider = NotifierProvider<SettingsSyncNotifier, bool>(
+  SettingsSyncNotifier.new,
+);
+
+// ========================================================================
+// SYNC MANAGER (Background-Aware)
 // ========================================================================
 
 /// Manages automatic synchronization between local DB and Supabase
@@ -117,37 +139,39 @@ class SettingsActions {
 final settingsSyncManagerProvider = Provider<void>((final ref) {
   final repo = ref.watch(settingsRepositoryProvider);
   final supabaseAuthState = ref.watch(supabaseAuthProvider);
-  final isOffline = ref.watch(isOfflineProvider);
-
-  // Track sync state
-  var hasSyncedThisSession = false;
+  final isOffline = ref.watch(isConnectionUnusableProvider);
+  final isInForeground = ref.watch(appIsInForegroundProvider);
 
   /// Helper to perform sync if conditions are met
   Future<void> performSyncIfNeeded() async {
-    if (hasSyncedThisSession) return;
-    if (isOffline || !supabaseAuthState.isConnected) return;
+    final hasSynced = ref.read(_settingsSyncStateProvider);
+
+    if (hasSynced || isOffline || !supabaseAuthState.isConnected) return;
 
     try {
       await repo.syncWithSupabase();
-      hasSyncedThisSession = true;
+      ref.read(_settingsSyncStateProvider.notifier).markAsSynced();
     } catch (e) {
       // Sync failed - will retry on next state change
-      hasSyncedThisSession = false;
+      ref.read(_settingsSyncStateProvider.notifier).markAsUnsynced();
     }
   }
 
   // CONNECTIVITY LISTENER
   ref
-    ..listen<bool>(isOfflineProvider, (final prev, final next) async {
-      if (prev == true && next == false) {
-        // From offline -> online
-        if (supabaseAuthState.isConnected) {
-          await performSyncIfNeeded();
-        }
-      } else if (next == true) {
-        // Gone offline - stop realtime to save resources
+    ..listen<bool>(isConnectionUnusableProvider, (
+      final prev,
+      final next,
+    ) async {
+      if (prev == null) return;
+
+      // From offline -> online
+      if (prev && !next && supabaseAuthState.isConnected) {
+        await performSyncIfNeeded();
+      } else if (!prev && next) {
+        // Gone offline stop realtime to save resources
         await repo.stopRealtimeSync();
-        hasSyncedThisSession = false;
+        ref.read(_settingsSyncStateProvider.notifier).markAsUnsynced();
       }
     })
     // AUTHENTICATION LISTENER
@@ -163,7 +187,25 @@ final settingsSyncManagerProvider = Provider<void>((final ref) {
       } else if (prev?.isConnected == true && next.isDisconnected) {
         // Just logged out
         await repo.stopRealtimeSync();
-        hasSyncedThisSession = false;
+        ref.read(_settingsSyncStateProvider.notifier).markAsUnsynced();
+      }
+    })
+    // APP LIFECYCLE LISTENER (Background/Foreground)
+    ..listen<bool>(appIsInForegroundProvider, (final prev, final next) async {
+      if (prev == null) return;
+
+      // App went to background
+      if (prev && !next) {
+        // Stop realtime to save battery and avoid Android killing WebSocket
+        await repo.stopRealtimeSync();
+        ref.read(_settingsSyncStateProvider.notifier).markAsUnsynced();
+      }
+      // App returned to foreground
+      else if (!prev && next) {
+        // Reconnect and sync if online and authenticated
+        if (!isOffline && supabaseAuthState.isConnected) {
+          await performSyncIfNeeded();
+        }
       }
     });
 
@@ -172,7 +214,11 @@ final settingsSyncManagerProvider = Provider<void>((final ref) {
   // ========================================================================
 
   // Perform initial sync if already online and authenticated
-  if (!hasSyncedThisSession && !isOffline && supabaseAuthState.isConnected) {
+  final hasSynced = ref.read(_settingsSyncStateProvider);
+  if (!hasSynced &&
+      !isOffline &&
+      supabaseAuthState.isConnected &&
+      isInForeground) {
     // Use microtask to avoid sync during provider build
     Future.microtask(performSyncIfNeeded);
   }

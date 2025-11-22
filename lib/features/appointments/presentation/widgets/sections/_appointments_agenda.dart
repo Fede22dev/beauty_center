@@ -11,7 +11,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 
 import '../../../../../core/constants/app_constants.dart';
-import '../../../../../core/constants/italy_holidays.dart';
+import '../../../../../core/localizations/utils_regions/italy_holidays.dart';
 
 // =============================================================================
 // MODELS & DATA

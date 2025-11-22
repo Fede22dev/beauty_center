@@ -2,7 +2,7 @@
 name: beauty_center
 description: "Management app for beauty centers with offline-first approach."
 publish_to: 'none'
-version: 0.1.4
+version: 0.1.5
 
 environment:
   sdk: '>=3.8.0 <4.0.0'
@@ -35,15 +35,18 @@ dependencies:
   flex_color_scheme: ^8.3.1
   flutter_screenutil: ^5.9.3
   material_symbols_icons: ^4.2874.0
+  font_awesome_flutter: ^10.12.0
   flex_color_picker: ^3.7.2
   flutter_animate: ^4.5.2
-  syncfusion_flutter_datepicker: ^31.2.5
+  shimmer: ^3.0.0
+  syncfusion_flutter_datepicker: ^31.2.12
+  infinite_scroll_pagination: ^5.1.1
+  flutter_typeahead: ^5.2.0
+
   #infinite_calendar_view: ^2.10.1
   #random_avatar: ^0.0.8
   #table_calendar: ^3.2.0
   #calendar_view: ^1.4.0
-  #infinite_scroll_pagination
-  #url_launcher: ^6.3.2
   #vibration: ^3.1.4
 
   # Navigation
@@ -58,7 +61,12 @@ dependencies:
   package_info_plus: ^9.0.0
   dio: ^5.9.0
   url_launcher: ^6.3.2
-  pinput: ^5.0.2
+  pinput: ^6.0.0
+  flutter_fgbg: ^0.7.1
+  flutter_contacts: ^1.1.9+2
+  shared_preferences: ^2.5.3
+  uuid: ^4.5.2
+  equatable: ^2.0.7
 
   # Assets
   flutter_launcher_icons: ^0.14.4

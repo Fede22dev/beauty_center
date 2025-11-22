@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -5,10 +6,11 @@ import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
 
 class AppLogger {
-  static bool useAnsiColor = !kReleaseMode;
+  static final _dateFormat = DateFormat('HH:mm:ss');
+  static bool _useAnsiColor = !kReleaseMode;
 
-  static void init({final Level? level = Level.FINE, final bool? ansiColor}) {
-    useAnsiColor = ansiColor ?? stdout.supportsAnsiEscapes;
+  static void init({final Level? level = Level.FINEST, final bool? ansiColor}) {
+    _useAnsiColor = ansiColor ?? stdout.supportsAnsiEscapes;
 
     Logger.root.level = level;
     Logger.root.onRecord.listen(_handleLog);
@@ -17,23 +19,41 @@ class AppLogger {
   static Logger getLogger({final String name = 'App'}) => Logger(name);
 
   static void _handleLog(final LogRecord record) {
-    final time = DateFormat('HH:mm:ss').format(record.time);
-    final color = useAnsiColor ? _ansiColorForLevel(record.level) : '';
-    final reset = useAnsiColor ? '\x1B[0m' : '';
+    final buffer = StringBuffer();
 
-    final timeField = '[$time]';
-    final loggerName = '[${record.loggerName}]';
-    final levelName = '[${record.level.name}]';
+    // 1. Timestamp
+    // Note: developer.log usually adds its own timestamp in DevTools,
+    // but we keep this for raw terminal output clarity.
+    final time = _dateFormat.format(record.time);
+    buffer
+      ..write('[$time]')
+      // 2. Logger Name
+      ..write('[${record.loggerName}]');
 
-    final message = record.message;
-    final error = record.error != null ? ' - ${record.error}' : '';
-    final stack = record.stackTrace != null ? '\n${record.stackTrace}' : '';
+    // 3. Level
+    if (_useAnsiColor) {
+      buffer
+        ..write(_ansiColorForLevel(record.level))
+        ..write('[${record.level.name}]')
+        ..write('\x1B[0m'); // Reset
+    } else {
+      buffer.write('[${record.level.name}]');
+    }
 
-    final line =
-        '$color$timeField$loggerName$levelName $message$error$reset$stack';
+    // 4. Message
+    buffer.write(' ${record.message}');
 
-    //stdout.writeln(line);
-    print(line);
+    // 'print' truncates long messages on Android.
+    // 'stdout' often fails in Flutter mobile environments.
+    // 'developer.log' handles long strings, errors, and stack traces natively.
+    developer.log(
+      buffer.toString(),
+      name: record.loggerName,
+      level: record.level.value,
+      error: record.error,
+      stackTrace: record.stackTrace,
+      time: record.time,
+    );
   }
 
   static String _ansiColorForLevel(final Level level) {

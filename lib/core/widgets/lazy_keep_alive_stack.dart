@@ -23,11 +23,21 @@ class LazyKeepAliveStack extends StatefulWidget {
 class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
   final Map<int, Widget> _cache = {};
 
+  @override
+  void didUpdateWidget(covariant final LazyKeepAliveStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.itemCount != oldWidget.itemCount ||
+        widget.itemBuilder != oldWidget.itemBuilder) {
+      _cache.clear();
+    }
+  }
+
   Widget _buildOrGet(final int index) =>
       _cache.putIfAbsent(index, () => widget.itemBuilder(context, index));
 
   @override
   Widget build(final BuildContext context) => Stack(
+    fit: StackFit.expand,
     children: List.generate(widget.itemCount, (final index) {
       final isActive = index == widget.index;
 

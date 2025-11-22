@@ -26,8 +26,8 @@ class AnimatedRotationIcon extends StatelessWidget {
           .round(),
     ),
     curve: Curves.easeInOutCubic,
-    builder: (final context, final value, _) => Transform.rotate(
-      angle: isSelected ? value * 2 * pi : 0,
+    builder: (final context, final value, final child) => Transform.rotate(
+      angle: value * 2 * pi,
       child: Icon(
         icon,
         color: color,

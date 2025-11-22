@@ -6,7 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/connectivity/connectivity_provider.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/supabase/supabase_auth_provider.dart';
+import '../../../core/providers/supabase_auth_provider.dart';
 import '../../../core/tabs/app_tabs.dart';
 import '../../../core/widgets/supabase_login_dialog.dart';
 import '../../providers/home_tab_provider.dart';
@@ -62,7 +62,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           )
-                          .animate()
+                          .animate(key: const ValueKey('app_bar_title'))
                           .fadeIn(
                             duration: kDefaultAppAnimationsDuration,
                             delay: 100.ms,
@@ -88,7 +88,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
 class _OfflineIndicator extends ConsumerWidget {
   @override
   Widget build(final BuildContext context, final WidgetRef ref) {
-    final isOffline = ref.watch(isOfflineProvider);
+    final isOffline = ref.watch(isConnectionUnusableProvider);
 
     return AnimatedSwitcher(
       duration: kDefaultAppAnimationsDuration,
@@ -121,7 +121,7 @@ class _AccountButton extends ConsumerWidget {
   @override
   Widget build(final BuildContext context, final WidgetRef ref) {
     final state = ref.watch(supabaseAuthProvider);
-    final isOffline = ref.watch(isOfflineProvider);
+    final isOffline = ref.watch(isConnectionUnusableProvider);
 
     final iconColor = state.isConnected
         ? Colors.green
