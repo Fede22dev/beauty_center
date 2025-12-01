@@ -61,7 +61,7 @@ dependencies:
   package_info_plus: ^9.0.0
   dio: ^5.9.0
   url_launcher: ^6.3.2
-  pinput: ^6.0.0
+  pinput: ^6.0.1
   flutter_fgbg: ^0.7.1
   flutter_contacts: ^1.1.9+2
   shared_preferences: ^2.5.3
