@@ -22,7 +22,7 @@ dependencies:
 
   # Local DB
   drift: ^2.29.0
-  sqlite3_flutter_libs: ^0.5.40
+  sqlite3_flutter_libs: ^0.5.41
   path_provider: ^2.1.5
   path: ^1.9.1
 
