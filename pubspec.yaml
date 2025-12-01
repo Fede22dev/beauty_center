@@ -39,7 +39,7 @@ dependencies:
   flex_color_picker: ^3.7.2
   flutter_animate: ^4.5.2
   shimmer: ^3.0.0
-  syncfusion_flutter_datepicker: ^31.2.12
+  syncfusion_flutter_datepicker: ^31.2.15
   infinite_scroll_pagination: ^5.1.1
   flutter_typeahead: ^5.2.0
 
