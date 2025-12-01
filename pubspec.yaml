@@ -32,7 +32,7 @@ dependencies:
   #cache_network_image: ^3.4.0
 
   # UI and theming
-  flex_color_scheme: ^8.3.1
+  flex_color_scheme: ^8.4.0
   flutter_screenutil: ^5.9.3
   material_symbols_icons: ^4.2874.0
   font_awesome_flutter: ^10.12.0
