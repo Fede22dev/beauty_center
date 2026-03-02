@@ -51,7 +51,10 @@ class ClientsTable extends Table {
   Set<Column> get primaryKey => {id};
 
   @override
-  List<Set<Column<Object>>>? get uniqueKeys => [{phoneNumber}, {email}];
+  List<Set<Column<Object>>>? get uniqueKeys => [
+    {phoneNumber},
+    {email},
+  ];
 }
 
 /// The ID is the cabin number
@@ -105,12 +108,7 @@ class WorkHoursTable extends Table {
 
 // DATABASE
 @DriftDatabase(
-  tables: [
-    ClientsTable,
-    CabinsTable,
-    OperatorsTable,
-    WorkHoursTable,
-  ],
+  tables: [ClientsTable, CabinsTable, OperatorsTable, WorkHoursTable],
 )
 class AppDatabase extends _$AppDatabase {
   factory AppDatabase() => _instance;
@@ -162,11 +160,14 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
 
       // Performance optimizations
-      //await customStatement('PRAGMA journal_mode = WAL');
-      await customStatement('PRAGMA synchronous = NORMAL');
+      await customStatement('PRAGMA journal_mode = DELETE');
+      await customStatement('PRAGMA synchronous = FULL');
       await customStatement('PRAGMA temp_store = MEMORY');
-      await customStatement('PRAGMA mmap_size = 268435456;'); // 256MB cache
+      //await customStatement('PRAGMA mmap_size = 268435456;'); // 256MB cache
       await customStatement('PRAGMA cache_size = -64000'); // 64MB cache
+
+      // Check database integrity
+      await _checkDatabaseIntegrity();
     },
   );
 
@@ -202,5 +203,13 @@ class AppDatabase extends _$AppDatabase {
         endMin: kDefaultWorkHourEnd.minute,
       ),
     );
+  }
+
+  Future<void> _checkDatabaseIntegrity() async {
+    final result = await customSelect('PRAGMA integrity_check;').getSingle();
+    final value = result.data.values.first;
+    if (value != 'ok') {
+      throw Exception('Database corruption detected: $value');
+    }
   }
 }

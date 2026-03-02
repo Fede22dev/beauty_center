@@ -26,7 +26,6 @@ class ClientListItem extends StatelessWidget {
     return Card(
       elevation: 2,
       margin: EdgeInsets.zero,
-      // Importante se usato in liste custom
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kIsWindows ? 12 : 12.r),
         side: BorderSide(
@@ -119,48 +118,6 @@ class ClientListItem extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            // Email
-                            if (client.email != null) ...[
-                              SizedBox(height: kIsWindows ? 2 : 2.h),
-                              InkWell(
-                                onTap: () => ContactActions.openEmail(
-                                  context,
-                                  client.email!,
-                                ),
-                                borderRadius: BorderRadius.circular(
-                                  kIsWindows ? 4 : 4.r,
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: kIsWindows ? 2 : 2.h,
-                                    horizontal: kIsWindows ? 2 : 2.w,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Symbols.email_rounded,
-                                        size: kIsWindows ? 16 : 14.sp,
-                                        color: colorScheme.primary,
-                                      ),
-                                      SizedBox(width: kIsWindows ? 6 : 6.w),
-                                      Flexible(
-                                        child: Text(
-                                          client.email!,
-                                          style: TextStyle(
-                                            fontSize: kIsWindows ? 16 : 14.sp,
-                                            color: colorScheme.primary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),

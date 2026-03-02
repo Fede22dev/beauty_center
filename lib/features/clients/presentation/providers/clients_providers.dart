@@ -5,7 +5,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/database/providers/app_database_provider.dart';
 import '../../../../core/providers/background_provider.dart';
 import '../../../../core/providers/supabase_auth_provider.dart';
-import '../repositories/clients_repository.dart';
+import '../../data/repositories/clients_repository.dart';
 
 // ========================================================================
 // CORE PROVIDERS

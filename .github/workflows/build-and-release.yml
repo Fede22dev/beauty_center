@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.35.7'
+  FLUTTER_VERSION: '3.41.2'
   JAVA_VERSION: '17'
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
       is_prerelease: ${{ steps.app_info.outputs.is_prerelease }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Extract app info
         id: app_info
@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -102,7 +102,7 @@ jobs:
           dist/${{ needs.setup.outputs.app_name }}_v${{ needs.setup.outputs.app_version }}_universal.apk
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: android-artifacts
           path: dist/*.apk
@@ -117,7 +117,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -320,7 +320,7 @@ jobs:
           iscc installer.iss
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-artifacts
           path: dist/*.exe
@@ -337,10 +337,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 

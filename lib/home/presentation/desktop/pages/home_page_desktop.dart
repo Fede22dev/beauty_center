@@ -25,10 +25,7 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
 
     final initialTabIndex = AppTabs.defaultTab.index;
 
-    _railController = SidebarXController(
-      selectedIndex: initialTabIndex,
-      extended: true,
-    );
+    _railController = SidebarXController(selectedIndex: initialTabIndex);
     _railController.addListener(_onRailSelectionChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {

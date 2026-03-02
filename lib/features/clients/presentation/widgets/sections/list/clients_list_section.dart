@@ -125,13 +125,7 @@ class _SectionClientListState extends ConsumerState<SectionClientList> {
       final prev,
       final next,
     ) {
-      final isNotLoading = !next.isLoading && next.hasValue;
-      final valueChanged = prev?.value?.length != next.value?.length;
-
-      if (isNotLoading && (valueChanged || prev == null)) {
-        log.fine('Stream aggiornato, refresh lista');
-        _pagingController.refresh();
-      }
+      _pagingController.refresh();
     });
 
     return RefreshIndicator(
