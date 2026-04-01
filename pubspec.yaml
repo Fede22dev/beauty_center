@@ -55,7 +55,7 @@ dependencies:
 
   # Utils
   logging: ^1.3.0
-  connectivity_plus: ^7.0.0
+  connectivity_plus: ^7.1.0
   permission_handler: ^12.0.1
   flutter_secure_storage: ^10.0.0
   package_info_plus: ^9.0.0
