@@ -62,7 +62,7 @@ dependencies:
   dio: ^5.9.2
   url_launcher: ^6.3.2
   pinput: ^6.0.2
-  flutter_fgbg: ^0.7.1
+  flutter_fgbg: ^0.8.0
   flutter_contacts: ^1.1.9+2
   shared_preferences: ^2.5.4
   uuid: ^4.5.3
