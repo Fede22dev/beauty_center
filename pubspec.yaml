@@ -35,7 +35,7 @@ dependencies:
   flex_color_scheme: ^8.4.0
   flutter_screenutil: ^5.9.3
   material_symbols_icons: ^4.2906.0
-  font_awesome_flutter: ^10.12.0
+  font_awesome_flutter: ^11.0.0
   flex_color_picker: ^3.8.0
   flutter_animate: ^4.5.2
   shimmer: ^3.0.0
