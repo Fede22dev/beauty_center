@@ -41,7 +41,7 @@ dependencies:
   shimmer: ^3.0.0
   syncfusion_flutter_datepicker: ^32.2.7
   infinite_scroll_pagination: ^5.1.1
-  flutter_typeahead: ^5.2.0
+  flutter_typeahead: ^6.0.0
 
   #infinite_calendar_view: ^2.10.1
   #random_avatar: ^0.0.8
