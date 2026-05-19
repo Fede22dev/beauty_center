@@ -6,11 +6,35 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 import '../constants/app_constants.dart';
+import '../logging/app_logger.dart';
+import '../utils/navigator_key.dart';
 
 // Singleton-like reference to remove the previous snackbar immediately
 OverlayEntry? _currentOverlay;
+bool _isRemoving = false;
 
 enum SnackBarType { success, error, info, warning }
+
+/// Usa questa funzione quando non hai un BuildContext diretto (es. errori globali)
+void showGlobalCustomSnackBar({
+  required String message,
+  final SnackBarType type = SnackBarType.info,
+  final Color? okColor,
+}) {
+  final context = navigatorKey.currentContext;
+  if (context != null) {
+    showCustomSnackBar(
+      context: context,
+      message: message,
+      type: type,
+      okColor: okColor,
+    );
+  } else {
+    AppLogger.talker.warning(
+      'Impossibile mostrare SnackBar: Context nullo. Errore: $message',
+    );
+  }
+}
 
 void showCustomSnackBar({
   required final BuildContext context,
@@ -18,8 +42,13 @@ void showCustomSnackBar({
   final SnackBarType type = SnackBarType.info,
   final Color? okColor,
 }) {
-  _currentOverlay?.remove();
-  _currentOverlay = null;
+  // Prevent double-removal race condition
+  if (_currentOverlay != null && !_isRemoving) {
+    _isRemoving = true;
+    _currentOverlay?.remove();
+    _currentOverlay = null;
+    _isRemoving = false;
+  }
 
   var overlayState = Overlay.maybeOf(context);
 
@@ -63,16 +92,22 @@ void showCustomSnackBar({
       isDark: isDark,
       colorScheme: colorScheme,
       onDismissed: () {
-        _currentOverlay?.remove();
-        _currentOverlay = null;
+        // Prevent double-removal when overlay was already replaced
+        if (_currentOverlay != null && !_isRemoving) {
+          _isRemoving = true;
+          _currentOverlay?.remove();
+          _currentOverlay = null;
+          _isRemoving = false;
+        }
       },
     ),
   );
 
-  overlayState.insert(overlayEntry);
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    overlayState?.insert(overlayEntry);
+    HapticFeedback.lightImpact();
+  });
   _currentOverlay = overlayEntry;
-
-  HapticFeedback.lightImpact();
 }
 
 class _ToastWidget extends StatefulWidget {
@@ -162,9 +197,7 @@ class _ToastWidgetState extends State<_ToastWidget>
       right: kIsWindows ? 0 : 16.w,
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: kIsWindows ? 400 : double.infinity,
-          ),
+          constraints: BoxConstraints(maxWidth: 0.9.sw),
           child: Dismissible(
             key: const ValueKey('custom_snackbar'),
             onDismissed: (final direction) => widget.onDismissed(),

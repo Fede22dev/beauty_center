@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../logging/app_logger.dart';
+
 enum ConnectionQuality { offline, poor, good }
 
 class ConnectivityRepository {
@@ -16,17 +18,21 @@ class ConnectivityRepository {
   static const _checkTimeout = Duration(seconds: 5);
   static const _periodicCheckInterval = Duration(seconds: 30);
   static const _periodicCheckIntervalBackground = Duration(minutes: 2);
+  static const _periodicCheckIntervalWindows = Duration(seconds: 10);
 
-  // Added more reliable hosts (OpenDNS) to the rotation.
   static const _checkHosts = [
     ('google.com', 443),
     ('1.1.1.1', 443), // Cloudflare
-    ('208.67.222.222', 443), // OpenDNS
   ];
+
+  static final _log = AppLogger.getLogger(name: 'ConnectivityRepository');
 
   Timer? _periodicTimer;
 
-  final _controller = StreamController<ConnectionQuality>.broadcast();
+  late final _controller = StreamController<ConnectionQuality>.broadcast(
+    onListen: _checkAndEmit,
+  );
+
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   var _isInBackground = false;
@@ -35,45 +41,61 @@ class ConnectivityRepository {
   ConnectionQuality _lastKnownQuality =
       ConnectionQuality.good; // Optimistic start
 
+  ConnectionQuality get currentQuality => _lastKnownQuality;
+
   Stream<ConnectionQuality> get connectionQualityStream => _controller.stream;
 
-  Stream<bool> get isOfflineStream =>
-      _controller.stream.map((final q) => q == ConnectionQuality.offline);
-
   void _init() {
-    // Emit initial state
-    _checkAndEmit();
+    // RITARDO INIZIALE: Non eseguiamo il ping immediatamente all'avvio.
+    // L'app parte col valore ottimistico "good" e aspetta 2 secondi
+    // per dare tempo al sistema di liberare i socket dopo l'Hot Restart
+    Future.delayed(const Duration(milliseconds: 2000), _checkAndEmit);
 
-    // Listen to hardware connectivity changes (Wifi/Mobile on/off)
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((_) {
-      // Debounce could be added here if needed, but force check is usually fine
-      _checkAndEmit();
-    });
+    // connectivity_plus lancia NetworkManager::StartListen Windows
+    // Ignoriamo l'iscrizione allo stream su Windows per evitare il log errore
+    // ed il crash interno al framework. Il nostro Timer periodico compenserà.
+    if (!Platform.isWindows) {
+      _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
+        _,
+      ) {
+        Future.delayed(const Duration(milliseconds: 500), _checkAndEmit);
+      });
+    }
 
     _startPeriodicChecks();
   }
 
   void _startPeriodicChecks() {
     _periodicTimer?.cancel();
-    final interval = _isInBackground
-        ? _periodicCheckIntervalBackground
-        : _periodicCheckInterval;
+
+    Duration interval;
+    if (_isInBackground) {
+      interval = _periodicCheckIntervalBackground;
+    } else {
+      interval = Platform.isWindows
+          ? _periodicCheckIntervalWindows
+          : _periodicCheckInterval;
+    }
 
     _periodicTimer = Timer.periodic(interval, (_) => _checkAndEmit());
   }
 
   Future<void> _checkAndEmit() async {
-    // Don't spam checks if the controller has no listeners
-    if (!_controller.hasListener) return;
+    try {
+      // Timeout globale per sicurezza, nel caso il plugin si incanti
+      final quality = await _getConnectionQuality().timeout(
+        const Duration(seconds: 10),
+      );
 
-    final quality = await _getConnectionQuality();
-
-    // Only add if changed
-    if (_lastKnownQuality != quality) {
-      _lastKnownQuality = quality;
-      _controller.add(quality);
-    } else {
-      _controller.add(quality);
+      // Aggiunge allo stream SOLO se è cambiato per evitare spam
+      if (_lastKnownQuality != quality) {
+        _lastKnownQuality = quality;
+        _controller.add(quality);
+      }
+    } catch (e) {
+      // Su Hot Restart i canali nativi possono dare eccezioni temporanee.
+      // Le ignoriamo per lasciare che il timer riprovi in modo pulito.
+      _log.warning('Connectivity check failed: $e');
     }
   }
 
@@ -85,32 +107,37 @@ class ConnectivityRepository {
 
   // Check hardware first, then Ping.
   Future<ConnectionQuality> _getConnectionQuality() async {
-    final results = await _connectivity.checkConnectivity();
-
-    if (_isPhysicallyDisconnected(results)) {
-      return ConnectionQuality.offline;
-    }
+    // final results = await _connectivity.checkConnectivity();
+    //
+    // if (_isPhysicallyDisconnected(results)) {
+    //   return ConnectionQuality.offline;
+    // }
 
     // Parallel Execution.
     // Instead of checking hosts one by one (sequential), check all at once.
     // The first one to succeed returns the result.
-    final latency = await _measureLatencyParallel();
+    var latency = await _measureLatencyParallel();
 
     if (latency == null) {
-      return ConnectionQuality.offline;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      latency = await _measureLatencyParallel();
     }
 
-    // Threshold for "Good" vs "Poor"
-    return latency < 300 ? ConnectionQuality.good : ConnectionQuality.poor;
+    if (latency != null) {
+      _log.finest('Measured latency: ${latency}ms');
+      return latency < 300 ? ConnectionQuality.good : ConnectionQuality.poor;
+    }
+
+    return ConnectionQuality.offline;
   }
 
-  bool _isPhysicallyDisconnected(final Iterable<ConnectivityResult> results) =>
-      !results.any(
-        (final result) =>
-            result == ConnectivityResult.wifi ||
-            result == ConnectivityResult.mobile ||
-            result == ConnectivityResult.ethernet,
-      );
+  // bool _isPhysicallyDisconnected(final Iterable<ConnectivityResult> results) =>
+  //     !results.any(
+  //       (final result) =>
+  //           result == ConnectivityResult.wifi ||
+  //           result == ConnectivityResult.mobile ||
+  //           result == ConnectivityResult.ethernet,
+  //     );
 
   // Parallel socket checks
   Future<int?> _measureLatencyParallel() async {
@@ -126,7 +153,7 @@ class ConnectivityRepository {
         final innerStopwatch = Stopwatch()..start();
         final socket = await Socket.connect(host, port, timeout: _checkTimeout);
         innerStopwatch.stop();
-        await socket.close();
+        socket.destroy();
         return innerStopwatch.elapsedMilliseconds;
       } catch (_) {
         return null;

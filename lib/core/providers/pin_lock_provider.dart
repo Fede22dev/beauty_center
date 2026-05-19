@@ -1,8 +1,14 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-class PinLockNotifier extends Notifier<bool> {
+part 'pin_lock_provider.g.dart';
+
+@riverpod
+class PinLock extends _$PinLock {
   @override
-  bool build() => true; // Locked by default
+  bool build() {
+    ref.keepAlive();
+    return true; // Stato iniziale: bloccato
+  }
 
   void unlock() => state = false;
 
@@ -10,7 +16,3 @@ class PinLockNotifier extends Notifier<bool> {
 
   bool get isLocked => state;
 }
-
-final pinLockProvider = NotifierProvider<PinLockNotifier, bool>(
-  PinLockNotifier.new,
-);

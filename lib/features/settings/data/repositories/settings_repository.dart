@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/repositories/base_repository.dart';
 import '../../../../core/database/supabase_schema.dart';
+import '../../../../core/logging/app_logger.dart';
 
 /// Repository for settings management (cabins, operators, work hours)
 /// Implements offline-first pattern with Supabase sync
@@ -16,283 +17,188 @@ class SettingsRepository extends BaseRepository {
     required super.isOnline,
   });
 
-  // ========================================================================
-  // VALIDATION HELPERS
-  // ========================================================================
-
-  void _validateCabinId(final int id) {
-    if (id < kMinCabinsCount || id > kMaxCabinsCount) {
-      throw ArgumentError(
-        'Cabin ID must be between $kMinCabinsCount and $kMaxCabinsCount, got $id',
-      );
-    }
-  }
-
-  void _validateOperatorId(final int id) {
-    if (id < kMinOperatorsCount || id > kMaxOperatorsCount) {
-      throw ArgumentError(
-        'Operator ID must be between $kMinOperatorsCount and $kMaxOperatorsCount, got $id',
-      );
-    }
-  }
-
-  void _validateCabinsCount(final int count) {
-    if (count < kMinCabinsCount || count > kMaxCabinsCount) {
-      throw ArgumentError(
-        'Cabins count must be between $kMinCabinsCount and $kMaxCabinsCount, got $count',
-      );
-    }
-  }
-
-  void _validateOperatorsCount(final int count) {
-    if (count < kMinOperatorsCount || count > kMaxOperatorsCount) {
-      throw ArgumentError(
-        'Operators count must be between $kMinOperatorsCount and $kMaxOperatorsCount, got $count',
-      );
-    }
-  }
+  static final _log = AppLogger.getLogger(name: 'SettingsRepository');
 
   // ========================================================================
   // CABINS - QUERIES (Read operations - always from local DB)
   // ========================================================================
 
-  /// Get all cabins ordered by ID
-  Future<List<Cabin>> getAllCabins() => (db.select(
-    db.cabinsTable,
-  )..orderBy([(final t) => OrderingTerm.asc(t.id)])).get();
+  /// Watch active cabins stream for reactive UI updates
+  Stream<List<Cabin>> watchAllActiveCabins() =>
+      (db.select(db.cabinsTable)
+            ..where((t) => t.isActive.equals(true))
+            ..orderBy([(final t) => OrderingTerm.asc(t.id)]))
+          .watch();
 
-  /// Watch cabins stream for reactive UI updates
-  Stream<List<Cabin>> watchCabins() => (db.select(
-    db.cabinsTable,
-  )..orderBy([(final t) => OrderingTerm.asc(t.id)])).watch();
+  /// Watch cabins count stream for reactive UI updates
+  Stream<int> watchAllCabinsCount() {
+    final query = db.selectOnly(db.cabinsTable)
+      ..addColumns([db.cabinsTable.id.count()]);
 
-  /// Get cabin by ID
-  Future<Cabin?> getCabinById(final int id) {
-    _validateCabinId(id);
-    return (db.select(
-      db.cabinsTable,
-    )..where((final t) => t.id.equals(id))).getSingleOrNull();
+    return query
+        .map((row) => row.read(db.cabinsTable.id.count()) ?? 0)
+        .watchSingle();
   }
 
-  /// Get cabins count
-  Future<int> getCabinsCount() async => (await getAllCabins()).length;
+  /// Get count of all cabins
+  Future<int> getAllCabinsCount() {
+    final query = db.selectOnly(db.cabinsTable)
+      ..addColumns([db.cabinsTable.id.count()]);
+
+    return query.map((row) => row.read(db.cabinsTable.id.count())!).getSingle();
+  }
 
   // ========================================================================
   // CABINS - CRUD (Write operations - sync with Supabase)
   // ========================================================================
 
-  /// Add new cabin
-  Future<int> addCabin({
-    required final int id,
-    required final material.Color color,
-  }) async {
-    _validateCabinId(id);
-
-    // Write to local DB first (offline-first)
-    final result = await db
-        .into(db.cabinsTable)
-        .insert(
-          CabinsTableCompanion.insert(id: Value(id), color: color.toARGB32()),
-        );
-
-    // Non-blocking sync to Supabase
-    syncAsync(() => _syncCabinToSupabase(id, color.toARGB32()));
-
-    return result;
-  }
-
   /// Update cabin color
-  Future<void> updateCabinColor({
+  /// Returns true if successful, false if offline (read-only mode)
+  Future<bool> updateCabinColor({
     required final int id,
     required final material.Color color,
   }) async {
-    _validateCabinId(id);
+    if (!isOnline) {
+      _log.warning('Cannot update cabin color: offline mode (read-only)');
+      return false;
+    }
 
     // Update local DB
-    await (db.update(db.cabinsTable)..where((final t) => t.id.equals(id)))
-        .write(CabinsTableCompanion(color: Value(color.toARGB32())));
+    final cabin =
+        await (db.update(
+          db.cabinsTable,
+        )..where((final t) => t.id.equals(id))).writeReturning(
+          CabinsTableCompanion(color: Value(color.toARGB32())),
+        );
 
     // Sync to Supabase
-    syncAsync(() => _syncCabinToSupabase(id, color.toARGB32()));
-  }
-
-  /// Delete cabin
-  Future<void> deleteCabin(final int id) async {
-    _validateCabinId(id);
-
-    // Delete from local DB
-    await (db.delete(db.cabinsTable)..where((final t) => t.id.equals(id))).go();
-
-    // Delete from Supabase
-    syncAsync(() => _deleteCabinFromSupabase(id));
+    syncAsync('cabin_${cabin.first.id}', () => _syncCabinColorToSupabase(cabin.first));
+    return true;
   }
 
   /// Set cabins count (add or remove to match target)
-  Future<void> setCabinsCount(final int targetCount) async {
-    _validateCabinsCount(targetCount);
+  /// Returns true if successful, false if offline (read-only mode)
+  Future<bool> setCabinsCount(final int targetCount) async {
+    if (!isOnline) {
+      _log.warning('Cannot set cabins count: offline mode (read-only)');
+      return false;
+    }
 
-    final currentCabins = await getAllCabins();
-    final currentCount = currentCabins.length;
+    final maxCabinsCount = await getAllCabinsCount();
 
-    if (targetCount > currentCount) {
-      // Add new cabins
-      final newCabins = <Map<String, dynamic>>[];
-
-      for (var newId = currentCount + 1; newId <= targetCount; newId++) {
-        final color =
-            kDefaultCabinsColors[newId - 1 % kDefaultCabinsColors.length];
-
-        await db
-            .into(db.cabinsTable)
-            .insert(
-              CabinsTableCompanion.insert(id: Value(newId), color: color),
-            );
-
-        newCabins.add({
-          SupabaseCabinsTable.id: newId,
-          SupabaseCabinsTable.color: color,
-        });
-      }
-
-      // Batch upsert to Supabase with explicit type
-      if (newCabins.isNotEmpty) {
-        syncAsync(
-          () => batchUpsert(table: SupabaseSchema.cabins, records: newCabins),
-        );
-      }
-    } else if (targetCount < currentCount) {
-      // Remove cabins from the end
-      final toDeleteIds = currentCabins
-          .skip(targetCount)
-          .map((final c) => c.id)
-          .toList();
-
-      for (final id in toDeleteIds) {
-        await (db.delete(
-          db.cabinsTable,
-        )..where((final t) => t.id.equals(id))).go();
-      }
-
-      // Batch delete from Supabase
-      syncAsync(
-        () => batchDelete(table: SupabaseSchema.cabins, ids: toDeleteIds),
+    if (targetCount < 0 || targetCount > maxCabinsCount) {
+      throw Exception(
+        'Il numero di cabine deve essere tra 0 e $maxCabinsCount',
       );
     }
+
+    // 1. Aggiorna DB LOCALE (Drift) - Attiva
+    await (db.update(db.cabinsTable)
+          ..where((t) => t.id.isSmallerOrEqualValue(targetCount)))
+        .write(const CabinsTableCompanion(isActive: Value(true)));
+
+    // 2. Aggiorna DB LOCALE (Drift) - Disattiva
+    await (db.update(db.cabinsTable)
+          ..where((t) => t.id.isBiggerThanValue(targetCount)))
+        .write(const CabinsTableCompanion(isActive: Value(false)));
+
+    // 3. Lancia il Sync verso Supabase passando solo il targetCount (il pivot)
+    syncAsync('cabins_activation_$targetCount', () => _syncCabinsActivationToSupabase(targetCount));
+    return true;
   }
 
   // ========================================================================
   // OPERATORS - QUERIES
   // ========================================================================
 
-  Future<List<Operator>> getAllOperators() => (db.select(
-    db.operatorsTable,
-  )..orderBy([(final t) => OrderingTerm.asc(t.id)])).get();
+  Stream<List<Operator>> watchAllActiveOperators() =>
+      (db.select(db.operatorsTable)
+            ..where((t) => t.isActive.equals(true))
+            ..orderBy([(final t) => OrderingTerm.asc(t.id)]))
+          .watch();
 
-  Stream<List<Operator>> watchOperators() => (db.select(
-    db.operatorsTable,
-  )..orderBy([(final t) => OrderingTerm.asc(t.id)])).watch();
+  Stream<int> watchAllOperatorsCount() {
+    final query = db.selectOnly(db.operatorsTable)
+      ..addColumns([db.operatorsTable.id.count()]);
 
-  Future<Operator?> getOperatorById(final int id) {
-    _validateOperatorId(id);
-    return (db.select(
-      db.operatorsTable,
-    )..where((final t) => t.id.equals(id))).getSingleOrNull();
+    return query
+        .map((row) => row.read(db.operatorsTable.id.count()) ?? 0)
+        .watchSingle();
   }
-
-  Future<int> getOperatorsCount() async => (await getAllOperators()).length;
 
   // ========================================================================
   // OPERATORS - CRUD
   // ========================================================================
 
-  Future<int> addOperator({
-    required final int id,
-    required final String name,
-  }) async {
-    _validateOperatorId(id);
-    if (name.trim().isEmpty) return 0;
+  /// Aggiunge un nuovo operatore (Trova il primo inattivo e lo riattiva)
+  /// Returns true if successful, false if offline (read-only mode)
+  Future<bool> addOperator() async {
+    if (!isOnline) {
+      _log.warning('Cannot add operator: offline mode (read-only)');
+      return false;
+    }
 
-    final result = await db
-        .into(db.operatorsTable)
-        .insert(OperatorsTableCompanion.insert(id: Value(id), name: name));
+    // Cerca il primo operatore libero (inattivo) ordinato per ID
+    final inactiveOperator =
+        await (db.select(db.operatorsTable)
+              ..where((t) => t.isActive.equals(false))
+              ..orderBy([(t) => OrderingTerm.asc(t.id)])
+              ..limit(1))
+            .getSingleOrNull();
 
-    syncAsync(() => _syncOperatorToSupabase(id, name));
+    // Se non ci sono operatori inattivi, abbiamo raggiunto il limite di Supabase
+    if (inactiveOperator == null) {
+      throw Exception(
+        'Numero massimo di operatori raggiunto. Aggiungi righe nel Cloud.',
+      );
+    }
 
-    return result;
+    // Aggiorna DB LOCALE: lo riattiva mantenendo il nome attuale
+    final operator =
+        await (db.update(
+          db.operatorsTable,
+        )..where((t) => t.id.equals(inactiveOperator.id))).writeReturning(
+          const OperatorsTableCompanion(isActive: Value(true)),
+        );
+
+    // Sync verso Supabase (Sincronizza solo l'attivazione)
+    syncAsync('operator_${operator.first.id}', () => _syncOperatorActivationToSupabase(operator.first));
+    return true;
   }
 
   Future<void> updateOperatorName({
     required final int id,
     required final String name,
   }) async {
-    _validateOperatorId(id);
-    if (name.trim().isEmpty) return;
-
-    await (db.update(db.operatorsTable)..where((final t) => t.id.equals(id)))
-        .write(OperatorsTableCompanion(name: Value(name)));
-
-    syncAsync(() => _syncOperatorToSupabase(id, name));
-  }
-
-  Future<void> deleteOperator(final int id) async {
-    _validateOperatorId(id);
-
-    await (db.delete(
-      db.operatorsTable,
-    )..where((final t) => t.id.equals(id))).go();
-
-    syncAsync(() => _deleteOperatorFromSupabase(id));
-  }
-
-  Future<void> setOperatorsCount(final int targetCount) async {
-    _validateOperatorsCount(targetCount);
-
-    final currentOperators = await getAllOperators();
-    final currentCount = currentOperators.length;
-
-    if (targetCount > currentCount) {
-      final newOperators = <Map<String, dynamic>>[];
-
-      for (var newId = currentCount + 1; newId <= targetCount; newId++) {
-        final name =
-            kDefaultOperatorNames[newId - 1 % kDefaultOperatorNames.length];
-
-        await db
-            .into(db.operatorsTable)
-            .insert(
-              OperatorsTableCompanion.insert(id: Value(newId), name: name),
-            );
-
-        newOperators.add({
-          SupabaseOperatorsTable.id: newId,
-          SupabaseOperatorsTable.name: name,
-        });
-      }
-
-      if (newOperators.isNotEmpty) {
-        syncAsync(
-          () => batchUpsert(
-            table: SupabaseSchema.operators,
-            records: newOperators,
-          ),
-        );
-      }
-    } else if (targetCount < currentCount) {
-      final toDeleteIds = currentOperators
-          .skip(targetCount)
-          .map((final o) => o.id)
-          .toList();
-
-      for (final id in toDeleteIds) {
-        await (db.delete(
-          db.operatorsTable,
-        )..where((final t) => t.id.equals(id))).go();
-      }
-
-      syncAsync(
-        () => batchDelete(table: SupabaseSchema.operators, ids: toDeleteIds),
-      );
+    if (name.trim().isEmpty) {
+      throw ArgumentError('Il nome operatore non può essere vuoto');
     }
+
+    final operator =
+        await (db.update(db.operatorsTable)
+              ..where((final t) => t.id.equals(id)))
+            .writeReturning(OperatorsTableCompanion(name: Value(name)));
+
+    syncAsync('operator_name_${operator.first.id}', () => _syncOperatorNameToSupabase(operator.first));
+  }
+
+  /// Elimina un operatore (Soft Delete: isActive = false)
+  /// Returns true if successful, false if offline (read-only mode)
+  Future<bool> deleteOperator(final int id) async {
+    if (!isOnline) {
+      _log.warning('Cannot delete operator: offline mode (read-only)');
+      return false;
+    }
+
+    final operator =
+        await (db.update(
+          db.operatorsTable,
+        )..where((final t) => t.id.equals(id))).writeReturning(
+          const OperatorsTableCompanion(isActive: Value(false)),
+        );
+
+    syncAsync('delete_operator_${operator.first.id}', () => _syncOperatorDeletionToSupabase(operator.first));
+    return true;
   }
 
   // ========================================================================
@@ -303,96 +209,57 @@ class SettingsRepository extends BaseRepository {
     db.workHoursTable,
   )..where((final t) => t.id.equals(kIdWorkHours))).getSingle();
 
-  Stream<WorkHours> watchWorkHours() => (db.select(
+  Stream<WorkHours?> watchWorkHours() => (db.select(
     db.workHoursTable,
-  )..where((final t) => t.id.equals(kIdWorkHours))).watchSingle();
+  )..where((final t) => t.id.equals(kIdWorkHours))).watchSingleOrNull();
+
+  /// Ensures default work hours exist in local DB (called at app startup)
+  /// This is needed when user is not logged in or offline
+  Future<void> ensureDefaultWorkHours() async {
+    try {
+      final existing = await (db.select(db.workHoursTable)
+            ..where((t) => t.id.equals(kIdWorkHours)))
+          .getSingleOrNull();
+
+      if (existing == null) {
+        await db.into(db.workHoursTable).insert(
+          WorkHoursTableCompanion.insert(
+            id: const Value(1),
+            startHr: 9,
+            startMin: 0,
+            endHr: 20,
+            endMin: 0,
+          ),
+        );
+        _log.info('Initialized default work hours (9:00-20:00) in local DB');
+      }
+    } catch (e, stackTrace) {
+      _log.warning('Failed to ensure default work hours', e, stackTrace);
+    }
+  }
 
   Future<void> updateWorkHours({
     required final material.TimeOfDay startTime,
     required final material.TimeOfDay endTime,
   }) async {
-    await (db.update(
-      db.workHoursTable,
-    )..where((final t) => t.id.equals(kIdWorkHours))).write(
-      WorkHoursTableCompanion(
-        startHr: Value(startTime.hour),
-        startMin: Value(startTime.minute),
-        endHr: Value(endTime.hour),
-        endMin: Value(endTime.minute),
-      ),
-    );
+    final workHours =
+        await (db.update(
+          db.workHoursTable,
+        )..where((final t) => t.id.equals(kIdWorkHours))).writeReturning(
+          WorkHoursTableCompanion(
+            startHr: Value(startTime.hour),
+            startMin: Value(startTime.minute),
+            endHr: Value(endTime.hour),
+            endMin: Value(endTime.minute),
+          ),
+        );
 
-    syncAsync(() => _syncWorkHoursToSupabase(startTime, endTime));
+    syncAsync('workhours_$kIdWorkHours', () => _syncWorkHoursToSupabase(workHours.first));
   }
 
   // ========================================================================
   // SYNC IMPLEMENTATION (BaseRepository overrides)
   // ========================================================================
-
-  @override
-  Future<void> pushLocalToSupabase() async {
-    if (!isOnline) return;
-
-    try {
-      // Check if Supabase tables are empty (first setup scenario)
-      final cabinsEmpty = await isSupabaseTableEmpty(SupabaseSchema.cabins);
-      final operatorsEmpty = await isSupabaseTableEmpty(
-        SupabaseSchema.operators,
-      );
-      final workHoursEmpty = await isSupabaseTableEmpty(
-        SupabaseSchema.workHours,
-      );
-
-      // Push local default data only if Supabase is empty
-      if (cabinsEmpty) {
-        final localCabins = await getAllCabins();
-        await batchUpsert(
-          table: SupabaseSchema.cabins,
-          records: localCabins
-              .map(
-                (final c) => {
-                  SupabaseCabinsTable.id: c.id,
-                  SupabaseCabinsTable.color: c.color,
-                },
-              )
-              .toList(),
-        );
-        log.info('Pushed default ${localCabins.length} cabins to Supabase');
-      }
-
-      if (operatorsEmpty) {
-        final localOperators = await getAllOperators();
-        await batchUpsert(
-          table: SupabaseSchema.operators,
-          records: localOperators
-              .map(
-                (final o) => {
-                  SupabaseOperatorsTable.id: o.id,
-                  SupabaseOperatorsTable.name: o.name,
-                },
-              )
-              .toList(),
-        );
-        log.info(
-          'Pushed default ${localOperators.length} operators to Supabase',
-        );
-      }
-
-      if (workHoursEmpty) {
-        final localWorkHours = await getWorkHours();
-        await supabase!.from(SupabaseSchema.workHours.tableName).insert({
-          SupabaseWorkHoursTable.id: localWorkHours.id,
-          SupabaseWorkHoursTable.startHr: localWorkHours.startHr,
-          SupabaseWorkHoursTable.startMin: localWorkHours.startMin,
-          SupabaseWorkHoursTable.endHr: localWorkHours.endHr,
-          SupabaseWorkHoursTable.endMin: localWorkHours.endMin,
-        });
-        log.info('Pushed default work hours to Supabase');
-      }
-    } catch (e, stackTrace) {
-      log.warning('Push to Supabase failed', e, stackTrace);
-    }
-  }
 
   @override
   Future<void> pullSupabaseToLocal() async {
@@ -404,6 +271,7 @@ class SettingsRepository extends BaseRepository {
         final cabinsData = await supabase!
             .from(SupabaseSchema.cabins.tableName)
             .select();
+
         if (cabinsData.isNotEmpty) {
           await db.delete(db.cabinsTable).go();
           for (final cabin in cabinsData) {
@@ -413,16 +281,19 @@ class SettingsRepository extends BaseRepository {
                   CabinsTableCompanion.insert(
                     id: Value(cabin[SupabaseCabinsTable.id] as int),
                     color: cabin[SupabaseCabinsTable.color] as int,
+                    isActive: cabin[SupabaseOperatorsTable.isActive] as bool,
                   ),
                 );
           }
-          log.info('Pulled ${cabinsData.length} cabins from Supabase');
+
+          _log.info('Pulled ${cabinsData.length} cabins from Supabase');
         }
 
         // Pull operators
         final operatorsData = await supabase!
             .from(SupabaseSchema.operators.tableName)
             .select();
+
         if (operatorsData.isNotEmpty) {
           await db.delete(db.operatorsTable).go();
           for (final operator in operatorsData) {
@@ -432,10 +303,12 @@ class SettingsRepository extends BaseRepository {
                   OperatorsTableCompanion.insert(
                     id: Value(operator[SupabaseOperatorsTable.id] as int),
                     name: operator[SupabaseOperatorsTable.name] as String,
+                    isActive: operator[SupabaseOperatorsTable.isActive] as bool,
                   ),
                 );
           }
-          log.info('Pulled ${operatorsData.length} operators from Supabase');
+
+          _log.info('Pulled ${operatorsData.length} operators from Supabase');
         }
 
         // Pull work hours
@@ -458,11 +331,14 @@ class SettingsRepository extends BaseRepository {
                   endMin: workHoursData[SupabaseWorkHoursTable.endMin] as int,
                 ),
               );
-          log.info('Pulled work hours from Supabase');
+          _log.info('Pulled work hours from Supabase');
+        } else {
+          // Insert default work hours if not found in Supabase
+          await ensureDefaultWorkHours();
         }
       });
     } catch (e, stackTrace) {
-      log.warning('Pull from Supabase failed', e, stackTrace);
+      _log.warning('Pull from Supabase failed', e, stackTrace);
     }
   }
 
@@ -486,7 +362,7 @@ class SettingsRepository extends BaseRepository {
       onEvent: _handleWorkHoursChange,
     );
 
-    log.info('Realtime sync started');
+    _log.info('Realtime sync started');
   }
 
   // ========================================================================
@@ -505,24 +381,28 @@ class SettingsRepository extends BaseRepository {
                 CabinsTableCompanion.insert(
                   id: Value(data[SupabaseCabinsTable.id] as int),
                   color: data[SupabaseCabinsTable.color] as int,
+                  isActive: data[SupabaseOperatorsTable.isActive] as bool,
                 ),
               );
-          log.fine(
+
+          _log.finest(
             'Cabin ${data[SupabaseCabinsTable.id]} synced from realtime',
           );
 
-        case PostgresChangeEvent.delete:
-          final id = payload.oldRecord[SupabaseCabinsTable.id] as int;
-          await (db.delete(
-            db.cabinsTable,
-          )..where((final t) => t.id.equals(id))).go();
-          log.fine('Cabin $id deleted from realtime');
+        // case PostgresChangeEvent.delete:
+        //   final id = payload.oldRecord[SupabaseCabinsTable.id] as int;
+        //   await (db.delete(
+        //     db.cabinsTable,
+        //   )..where((final t) => t.id.equals(id))).go();
+        //   _log.finest('Cabin $id deleted from realtime');
 
+        // Non viene fatta mai delete, si usa soft delete con isActive
+        case PostgresChangeEvent.delete:
         case PostgresChangeEvent.all:
-          throw UnimplementedError('PostgresChangeEvent.all not supported');
+          throw UnimplementedError('${payload.eventType} not supported');
       }
     } catch (e, stackTrace) {
-      log.warning('Failed to handle cabin change', e, stackTrace);
+      _log.warning('Failed to handle cabin change', e, stackTrace);
     }
   }
 
@@ -540,24 +420,29 @@ class SettingsRepository extends BaseRepository {
                 OperatorsTableCompanion.insert(
                   id: Value(data[SupabaseOperatorsTable.id] as int),
                   name: data[SupabaseOperatorsTable.name] as String,
+                  isActive: data[SupabaseOperatorsTable.isActive] as bool,
                 ),
               );
-          log.fine(
+
+          _log.finest(
             'Operator ${data[SupabaseOperatorsTable.id]} synced from realtime',
           );
 
-        case PostgresChangeEvent.delete:
-          final id = payload.oldRecord[SupabaseOperatorsTable.id] as int;
-          await (db.delete(
-            db.operatorsTable,
-          )..where((final t) => t.id.equals(id))).go();
-          log.fine('Operator $id deleted from realtime');
+        // case PostgresChangeEvent.delete:
+        //   final id = payload.oldRecord[SupabaseOperatorsTable.id] as int;
+        //   await (db.delete(
+        //     db.operatorsTable,
+        //   )..where((final t) => t.id.equals(id))).go();
+        //
+        //   _log.finest('Operator $id deleted from realtime');
 
+        // Non viene fatta mai delete, si usa soft delete con isActive
+        case PostgresChangeEvent.delete:
         case PostgresChangeEvent.all:
-          throw UnimplementedError('PostgresChangeEvent.all not supported');
+          throw UnimplementedError('${payload.eventType} not supported');
       }
     } catch (e, stackTrace) {
-      log.warning('Failed to handle operator change', e, stackTrace);
+      _log.warning('Failed to handle operator change', e, stackTrace);
     }
   }
 
@@ -578,10 +463,11 @@ class SettingsRepository extends BaseRepository {
                 endMin: data[SupabaseWorkHoursTable.endMin] as int,
               ),
             );
-        log.fine('Work hours synced from realtime');
+
+        _log.finest('Work hours synced from realtime');
       }
     } catch (e, stackTrace) {
-      log.warning('Failed to handle work hours change', e, stackTrace);
+      _log.warning('Failed to handle work hours change', e, stackTrace);
     }
   }
 
@@ -589,66 +475,107 @@ class SettingsRepository extends BaseRepository {
   // PRIVATE SYNC HELPERS
   // ========================================================================
 
-  Future<void> _syncCabinToSupabase(final int id, final int color) async {
-    try {
-      await supabase?.from(SupabaseSchema.cabins.tableName).upsert({
-        SupabaseCabinsTable.id: id,
-        SupabaseCabinsTable.color: color,
-      });
-    } catch (e, stackTrace) {
-      log.warning('Failed to sync cabin $id to Supabase', e, stackTrace);
-    }
-  }
-
-  Future<void> _deleteCabinFromSupabase(final int id) async {
+  Future<void> _syncCabinColorToSupabase(final Cabin cabin) async {
     try {
       await supabase
           ?.from(SupabaseSchema.cabins.tableName)
-          .delete()
-          .eq(SupabaseCabinsTable.id, id);
+          .update({SupabaseCabinsTable.color: cabin.color})
+          .eq(SupabaseCabinsTable.id, cabin.id);
     } catch (e, stackTrace) {
-      log.warning('Failed to delete cabin $id from Supabase', e, stackTrace);
+      _log.warning(
+        'Failed to sync cabin ${cabin.id} to Supabase',
+        e,
+        stackTrace,
+      );
     }
   }
 
-  Future<void> _syncOperatorToSupabase(final int id, final String name) async {
+  Future<void> _syncCabinsActivationToSupabase(final int targetCount) async {
     try {
-      await supabase?.from(SupabaseSchema.operators.tableName).upsert({
-        SupabaseOperatorsTable.id: id,
-        SupabaseOperatorsTable.name: name,
-      });
+      final table = SupabaseSchema.cabins.tableName;
+
+      // 1. Attiva su Supabase tutte le cabine con ID <= targetCount
+      await supabase
+          ?.from(table)
+          .update({SupabaseCabinsTable.isActive: true})
+          .lte(SupabaseCabinsTable.id, targetCount);
+
+      // 2. Disattiva su Supabase tutte le cabine con ID > targetCount
+      await supabase
+          ?.from(table)
+          .update({SupabaseCabinsTable.isActive: false})
+          .gt(SupabaseCabinsTable.id, targetCount);
     } catch (e, stackTrace) {
-      log.warning('Failed to sync operator $id to Supabase', e, stackTrace);
+      _log.warning('Failed to sync cabins state to Supabase', e, stackTrace);
     }
   }
 
-  Future<void> _deleteOperatorFromSupabase(final int id) async {
+  Future<void> _syncOperatorActivationToSupabase(
+    final Operator operator,
+  ) async {
     try {
       await supabase
           ?.from(SupabaseSchema.operators.tableName)
-          .delete()
-          .eq(SupabaseOperatorsTable.id, id);
+          .update({
+            SupabaseOperatorsTable.isActive:
+                true, // Accende l'operatore sul cloud
+          })
+          .eq(SupabaseOperatorsTable.id, operator.id);
     } catch (e, stackTrace) {
-      log.warning('Failed to delete operator $id from Supabase', e, stackTrace);
+      _log.warning(
+        'Failed to sync operator activation to Supabase',
+        e,
+        stackTrace,
+      );
     }
   }
 
-  Future<void> _syncWorkHoursToSupabase(
-    final material.TimeOfDay startTime,
-    final material.TimeOfDay endTime,
-  ) async {
+  Future<void> _syncOperatorNameToSupabase(final Operator operator) async {
+    try {
+      await supabase
+          ?.from(SupabaseSchema.operators.tableName)
+          .update({SupabaseOperatorsTable.name: operator.name})
+          .eq(SupabaseOperatorsTable.id, operator.id);
+    } catch (e, stackTrace) {
+      _log.warning(
+        'Failed to sync operator ${operator.id} to Supabase',
+        e,
+        stackTrace,
+      );
+    }
+  }
+
+  Future<void> _syncOperatorDeletionToSupabase(final Operator operator) async {
+    try {
+      await supabase
+          ?.from(SupabaseSchema.operators.tableName)
+          .update({
+            SupabaseOperatorsTable.isActive:
+                false, // Spegne l'operatore sul cloud (soft delete)
+          })
+          .eq(SupabaseOperatorsTable.id, operator.id);
+    } catch (e, stackTrace) {
+      _log.warning(
+        'Failed to delete operator ${operator.id} from Supabase',
+        e,
+        stackTrace,
+      );
+    }
+  }
+
+  Future<void> _syncWorkHoursToSupabase(final WorkHours workHours) async {
     try {
       await supabase
           ?.from(SupabaseSchema.workHours.tableName)
           .update({
-            SupabaseWorkHoursTable.startHr: startTime.hour,
-            SupabaseWorkHoursTable.startMin: startTime.minute,
-            SupabaseWorkHoursTable.endHr: endTime.hour,
-            SupabaseWorkHoursTable.endMin: endTime.minute,
+            SupabaseWorkHoursTable.startHr: workHours.startHr,
+            SupabaseWorkHoursTable.startMin: workHours.startMin,
+            SupabaseWorkHoursTable.endHr: workHours.endHr,
+            SupabaseWorkHoursTable.endMin: workHours.endMin,
           })
           .eq(SupabaseWorkHoursTable.id, kIdWorkHours);
     } catch (e, stackTrace) {
-      log.warning('Failed to sync work hours to Supabase', e, stackTrace);
+      _log.warning('Failed to sync work hours to Supabase', e, stackTrace);
     }
   }
 }

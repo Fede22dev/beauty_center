@@ -24,7 +24,6 @@ class _HomePageDesktopState extends ConsumerState<HomePageDesktop> {
     super.initState();
 
     final initialTabIndex = AppTabs.defaultTab.index;
-
     _railController = SidebarXController(selectedIndex: initialTabIndex);
     _railController.addListener(_onRailSelectionChanged);
 

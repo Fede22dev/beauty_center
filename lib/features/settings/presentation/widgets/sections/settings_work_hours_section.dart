@@ -6,13 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../../../core/connectivity/connectivity_provider.dart';
+import '../../../../../core/connectivity/connectivity_providers.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/app_database.dart';
 import '../../../../../core/providers/supabase_auth_provider.dart';
 import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
-import '../../providers/settings_provider.dart';
+import '../../../providers/settings_providers.dart';
 
 class SettingsWorkHoursSection extends ConsumerWidget {
   const SettingsWorkHoursSection({required this.workHours, super.key});
@@ -56,7 +56,7 @@ class SettingsWorkHoursSection extends ConsumerWidget {
               Expanded(
                 child: _TimeCard(
                   label: context.l10n.start,
-                  subtitle: '06:00 - 12:00',
+                  subtitle: 'Range: 06:00 - 12:00',
                   time: workHours.startTime.format(context),
                   icon: Symbols.wb_sunny_rounded,
                   onTap: () {
@@ -82,7 +82,7 @@ class SettingsWorkHoursSection extends ConsumerWidget {
               Expanded(
                 child: _TimeCard(
                   label: context.l10n.end,
-                  subtitle: '14:00 - 22:00',
+                  subtitle: 'Range: 14:00 - 23:00',
                   time: workHours.endTime.format(context),
                   icon: Symbols.nightlight_round,
                   onTap: () {
@@ -175,8 +175,8 @@ class SettingsWorkHoursSection extends ConsumerWidget {
         return;
       }
     } else {
-      // Range 14:00 - 22:00
-      if (totalMinutes < 840 || totalMinutes > 1320) {
+      // Range 14:00 - 23:00
+      if (totalMinutes < 840 || totalMinutes > 1380) {
         if (context.mounted) {
           showCustomSnackBar(
             context: context,

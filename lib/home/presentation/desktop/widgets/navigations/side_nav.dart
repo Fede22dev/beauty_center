@@ -6,7 +6,7 @@ import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/tabs/app_tabs.dart';
 import '../../../widgets/animated_rotation_icon.dart';
 
-class SideNav extends StatelessWidget {
+class SideNav extends StatefulWidget {
   const SideNav({
     required this.selectedIndex,
     required this.controller,
@@ -17,11 +17,52 @@ class SideNav extends StatelessWidget {
   final SidebarXController controller;
 
   @override
+  State<SideNav> createState() => _SideNavState();
+}
+
+class _SideNavState extends State<SideNav> {
+  late final List<GlobalKey> _sidebarItemKeys;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _sidebarItemKeys = List.generate(AppTabs.values.length, (_) => GlobalKey());
+
+    widget.controller.addListener(_handleScroll);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleScroll();
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleScroll);
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    final index = widget.controller.selectedIndex;
+    if (index >= 0 && index < _sidebarItemKeys.length) {
+      final context = _sidebarItemKeys[index].currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          duration: kDefaultAppAnimationsDuration,
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return SidebarX(
-      controller: controller,
+      controller: widget.controller,
       animationDuration: kDefaultAppAnimationsDuration,
       theme: SidebarXTheme(
         width: 100,
@@ -29,7 +70,7 @@ class SideNav extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
-            AppTabs.values[selectedIndex].color.withValues(alpha: 0.1),
+            AppTabs.values[widget.selectedIndex].color.withValues(alpha: 0.1),
             colorScheme.surfaceContainerHigh,
           ),
           borderRadius: BorderRadius.circular(18),
@@ -67,7 +108,7 @@ class SideNav extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         selectedTextStyle: TextStyle(
-          color: AppTabs.values[selectedIndex].color,
+          color: AppTabs.values[widget.selectedIndex].color,
           fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
@@ -80,7 +121,7 @@ class SideNav extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
-            AppTabs.values[selectedIndex].color.withValues(alpha: 0.1),
+            AppTabs.values[widget.selectedIndex].color.withValues(alpha: 0.1),
             colorScheme.surfaceContainerHigh,
           ),
           borderRadius: BorderRadius.circular(12),
@@ -113,7 +154,7 @@ class SideNav extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         selectedTextStyle: TextStyle(
-          color: AppTabs.values[selectedIndex].color,
+          color: AppTabs.values[widget.selectedIndex].color,
           fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
@@ -121,16 +162,19 @@ class SideNav extends StatelessWidget {
         selectedItemTextPadding: const EdgeInsets.only(left: 8),
       ),
       items: [
-        for (final tab in AppTabs.values)
+        for (int i = 0; i < AppTabs.values.length; i++)
           SidebarXItem(
-            label: tab.label(context),
-            iconBuilder: (final selected, final hovered) => Center(
+            label: AppTabs.values[i].label(context),
+            iconBuilder: (final selected, final hovered) => Container(
+              key: _sidebarItemKeys[i],
+              alignment: Alignment.center,
               child: AnimatedRotationIcon(
-                icon: tab.icon,
+                key: ValueKey(AppTabs.values[i]),
+                icon: AppTabs.values[i].icon,
                 color: selected
-                    ? tab.color
+                    ? AppTabs.values[i].color
                     : (hovered
-                          ? tab.color.withValues(alpha: 0.65)
+                          ? AppTabs.values[i].color.withValues(alpha: 0.65)
                           : colorScheme.onSurfaceVariant.withValues(
                               alpha: 0.9,
                             )),
@@ -146,7 +190,7 @@ class SideNav extends StatelessWidget {
       ),
       toggleButtonBuilder: (final context, final extended) => ToggleButton(
         isExtended: extended,
-        onToggle: controller.toggleExtended,
+        onToggle: widget.controller.toggleExtended,
       ),
     );
   }

@@ -4,9 +4,9 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../features/appointments/presentation/pages/appointments_page.dart';
 import '../../features/clients/presentation/pages/clients_page.dart';
+import '../../features/products/presentation/pages/products_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/statistics/presentation/pages/statistics_page.dart';
-import '../../features/suppliers/presentation/pages/suppliers_page.dart';
 import '../../features/treatments/presentation/pages/treatments_page.dart';
 
 enum AppTabs {
@@ -25,10 +25,10 @@ enum AppTabs {
     color: Color(0xFFFFC000),
     buildPage: TreatmentsPage(),
   ),
-  suppliers(
-    icon: Symbols.storefront_rounded,
+  products(
+    icon: Symbols.experiment_rounded,
     color: Color(0xFF00CCD4),
-    buildPage: SuppliersPage(),
+    buildPage: ProductsPage(),
   ),
   statistics(
     icon: Symbols.show_chart_rounded,
@@ -47,7 +47,7 @@ enum AppTabs {
     required this.buildPage,
   });
 
-  static const defaultTab = AppTabs.clients; // TODO: change to appointments
+  static const defaultTab = AppTabs.appointments;
 
   final IconData icon;
   final Color color;
@@ -60,7 +60,7 @@ final Map<AppTabs, String Function(BuildContext)> _labels = {
   AppTabs.appointments: (final c) => c.l10n.appointments,
   AppTabs.clients: (final c) => c.l10n.clients,
   AppTabs.treatments: (final c) => c.l10n.treatments,
-  AppTabs.suppliers: (final c) => c.l10n.suppliers,
+  AppTabs.products: (final c) => c.l10n.products,
   AppTabs.statistics: (final c) => c.l10n.statistics,
   AppTabs.settings: (final c) => c.l10n.settings,
 };

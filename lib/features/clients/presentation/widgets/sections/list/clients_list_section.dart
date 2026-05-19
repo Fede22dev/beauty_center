@@ -10,7 +10,9 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../../../core/constants/app_constants.dart';
 import '../../../../../../core/database/app_database.dart';
-import '../../../providers/clients_providers.dart';
+import '../../../../../../core/utils/fuzzy_search.dart';
+import '../../../../../../core/widgets/app_error_view.dart';
+import '../../../../providers/clients_providers.dart';
 import 'client_list_item.dart';
 
 const _pageSize = 20;
@@ -33,7 +35,7 @@ class SectionClientList extends ConsumerStatefulWidget {
 }
 
 class _SectionClientListState extends ConsumerState<SectionClientList> {
-  static final log = AppLogger.getLogger(name: 'SectionClientList');
+  static final _log = AppLogger.getLogger(name: 'SectionClientList');
 
   late final PagingController<int, Client> _pagingController;
 
@@ -77,45 +79,43 @@ class _SectionClientListState extends ConsumerState<SectionClientList> {
 
       return filteredClients.sublist(start, end);
     } catch (e, stackTrace) {
-      log.severe('Error fetching page $pageKey', e, stackTrace);
+      _log.severe('Error fetching page $pageKey', e, stackTrace);
       rethrow;
     }
   }
 
   List<Client> _filterAndSortClients(final List<Client> clients) {
-    final q = widget.searchQuery.trim().toLowerCase();
+    final q = widget.searchQuery.trim();
 
-    final filtered =
-        q.isEmpty
-              ? clients
-              : clients
-                    .where(
-                      (final c) =>
-                          c.firstName.toLowerCase().contains(q) ||
-                          c.lastName.toLowerCase().contains(q) ||
-                          c.phoneNumber.contains(q),
-                    )
-                    .toList()
-          ..sort((final a, final b) {
-            final f = a.firstName.toLowerCase().compareTo(
-              b.firstName.toLowerCase(),
-            );
-            return f != 0
-                ? f
-                : a.lastName.toLowerCase().compareTo(b.lastName.toLowerCase());
-          });
+    if (q.isEmpty) {
+      // No search query - sort alphabetically
+      return clients..sort((final a, final b) {
+        final f = a.firstName.toLowerCase().compareTo(
+          b.firstName.toLowerCase(),
+        );
+        return f != 0
+            ? f
+            : a.lastName.toLowerCase().compareTo(b.lastName.toLowerCase());
+      });
+    }
 
-    return filtered;
+    // Use fuzzy search for typo-tolerant matching (e.g., "Mria" matches "Maria")
+    return FuzzySearch.filterAndSort<Client>(
+      q,
+      clients,
+      (c) => '${c.firstName} ${c.lastName} ${c.phoneNumber}',
+      threshold: 0.5, // 50% similarity threshold
+    );
   }
 
   Future<void> _handleRefresh() async {
     try {
       await ref.read(clientsActionsProvider).syncWithSupabase();
     } catch (e, s) {
-      log.warning('Manual sync failed', e, s);
+      _log.warning('Manual sync failed', e, s);
     }
 
-    log.fine('Manual sync list');
+    _log.finest('Manual sync list');
     _pagingController.refresh();
   }
 
@@ -156,10 +156,15 @@ class _SectionClientListState extends ConsumerState<SectionClientList> {
                       onTap: () => widget.onClientTap(client.id),
                       index: index,
                     ),
-                firstPageErrorIndicatorBuilder: (final context) =>
-                    _ErrorIndicator(onRetry: _pagingController.refresh),
-                newPageErrorIndicatorBuilder: (final context) =>
-                    _ErrorIndicator(onRetry: _pagingController.refresh),
+                firstPageErrorIndicatorBuilder: (final context) => AppErrorView(
+                  error: _pagingController.error,
+                  onRetry: _pagingController.refresh,
+                ),
+                newPageErrorIndicatorBuilder: (final context) => AppErrorView(
+                  isCompact: true,
+                  error: _pagingController.error,
+                  onRetry: _pagingController.refresh,
+                ),
                 firstPageProgressIndicatorBuilder: (final context) =>
                     _ShimmerLoadingList(),
                 newPageProgressIndicatorBuilder: (final context) =>
@@ -252,49 +257,6 @@ class _EmptyState extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Error indicator widget
-class _ErrorIndicator extends StatelessWidget {
-  const _ErrorIndicator({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(final BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(kIsWindows ? 32 : 32.w),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Symbols.error_outline_rounded,
-              size: kIsWindows ? 128 : 128.sp,
-              color: colorScheme.error,
-            ),
-            SizedBox(height: kIsWindows ? 16 : 16.h),
-            Text(
-              'Errore nel caricamento',
-              style: TextStyle(
-                color: colorScheme.onSurfaceVariant,
-                fontSize: kIsWindows ? 20 : 20.sp,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: kIsWindows ? 16 : 16.h),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Symbols.refresh_rounded),
-              label: const Text('Riprova'),
             ),
           ],
         ),

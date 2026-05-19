@@ -41,7 +41,7 @@ List<DateTime> holidayItalyByYear(final int year) {
 List<DateTime> allHolidaysItaly() {
   final days = <DateTime>[];
 
-  for (var year = kMinYearCalendar; year <= kMaxYearCalendar; year++) {
+  for (var year = kMinCalendarYear; year <= kMaxCalendarYear; year++) {
     days.addAll(holidayItalyByYear(year));
   }
 

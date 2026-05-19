@@ -1,67 +1,79 @@
-import 'dart:developer' as developer;
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
-import 'package:logging/logging.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 class AppLogger {
-  static final _dateFormat = DateFormat('HH:mm:ss');
-  static bool _useAnsiColor = !kReleaseMode;
+  static late final Talker talker;
 
-  static void init({final Level? level = Level.FINEST, final bool? ansiColor}) {
-    _useAnsiColor = ansiColor ?? stdout.supportsAnsiEscapes;
-
-    Logger.root.level = level;
-    Logger.root.onRecord.listen(_handleLog);
-  }
-
-  static Logger getLogger({final String name = 'App'}) => Logger(name);
-
-  static void _handleLog(final LogRecord record) {
-    final buffer = StringBuffer();
-
-    // 1. Timestamp
-    // Note: developer.log usually adds its own timestamp in DevTools,
-    // but we keep this for raw terminal output clarity.
-    final time = _dateFormat.format(record.time);
-    buffer
-      ..write('[$time]')
-      // 2. Logger Name
-      ..write('[${record.loggerName}]');
-
-    // 3. Level
-    if (_useAnsiColor) {
-      buffer
-        ..write(_ansiColorForLevel(record.level))
-        ..write('[${record.level.name}]')
-        ..write('\x1B[0m'); // Reset
-    } else {
-      buffer.write('[${record.level.name}]');
-    }
-
-    // 4. Message
-    buffer.write(' ${record.message}');
-
-    // 'print' truncates long messages on Android.
-    // 'stdout' often fails in Flutter mobile environments.
-    // 'developer.log' handles long strings, errors, and stack traces natively.
-    developer.log(
-      buffer.toString(),
-      name: record.loggerName,
-      level: record.level.value,
-      error: record.error,
-      stackTrace: record.stackTrace,
-      time: record.time,
+  static void init() {
+    talker = TalkerFlutter.init(
+      settings: TalkerSettings(
+        useConsoleLogs: true,
+        useHistory: true,
+        maxHistoryItems: 1000,
+      ),
+      logger: TalkerLogger(
+        settings: TalkerLoggerSettings(
+          level: LogLevel.verbose,
+          enableColors: true,
+          maxLineWidth: 120,
+        ),
+      ),
+      observer: AppTalkerObserver(), // Crashlytics
     );
   }
 
-  static String _ansiColorForLevel(final Level level) {
-    if (level >= Level.SHOUT) return '\x1B[35m'; // Magenta
-    if (level >= Level.SEVERE) return '\x1B[31m'; // Red
-    if (level >= Level.WARNING) return '\x1B[33m'; // Yellow
-    if (level >= Level.INFO) return '\x1B[32m'; // Green
-    if (level >= Level.CONFIG) return '\x1B[36m'; // Cyan
-    return '\x1B[90m'; // Grey
+  static LogWrapper getLogger({final String name = 'App'}) =>
+      LogWrapper(name, talker);
+}
+
+class LogWrapper {
+  LogWrapper(this.name, this.talker);
+
+  final String name;
+  final Talker talker;
+
+  void finest(String message) => talker.verbose('[$name] $message');
+
+  void info(String message) => talker.info('[$name] $message');
+
+  void warning(String message, [Object? error, StackTrace? stackTrace]) {
+    if (error != null) {
+      talker.warning('[$name] $message', error, stackTrace);
+    } else {
+      talker.warning('[$name] $message');
+    }
+  }
+
+  void severe(String message, [Object? error, StackTrace? stackTrace]) {
+    if (error != null) {
+      talker.error('[$name] $message', error, stackTrace);
+    } else {
+      talker.error('[$name] $message');
+    }
+  }
+}
+
+/// Observer per inviare automaticamente Errori e Log ai server remoti
+class AppTalkerObserver extends TalkerObserver {
+  // 1. Invia a Crashlytics le eccezioni vere e proprie (I tuoi log.severe / try-catch)
+  @override
+  void onError(TalkerError err) {
+    super.onError(err);
+    // TODO (Futuro): Invia a Crashlytics
+    // FirebaseCrashlytics.instance.recordError(err.error, err.stackTrace, reason: err.message);
+  }
+
+  // 2. Invia a Crashlytics eccezioni non previste dal Framework
+  @override
+  void onException(TalkerException err) {
+    super.onException(err);
+    // TODO (Futuro): Invia a Crashlytics
+    // FirebaseCrashlytics.instance.recordError(err.exception, err.stackTrace, reason: err.message);
+  }
+
+  // Opzionale: puoi inviare anche i log normali (es. gli info)
+  @override
+  void onLog(TalkerData log) {
+    super.onLog(log);
+    // FirebaseCrashlytics.instance.log(log.generateTextMessage());
   }
 }

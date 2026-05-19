@@ -1,6 +1,6 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
 
-enum ContactChangeType { create, update }
+enum MyContactChangeType { create, update }
 
 /// Represents a pending change to be applied to the device contacts
 class PendingContactChange {
@@ -17,7 +17,7 @@ class PendingContactChange {
   final String lastName;
   final String phone;
   final String? email;
-  final ContactChangeType type;
+  final MyContactChangeType type;
   final Contact? existingContact;
 
   // UI State

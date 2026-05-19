@@ -5,8 +5,8 @@ publish_to: 'none'
 version: 0.1.5
 
 environment:
-  sdk: '>=3.8.0 <4.0.0'
-  flutter: ">=3.41.2"
+  sdk: '>=3.11.0 <4.0.0'
+  flutter: ">=3.41.6"
 
 dependencies:
   flutter:
@@ -18,59 +18,61 @@ dependencies:
   intl: ^0.20.2
 
   # State management
-  flutter_riverpod: ^3.2.1
+  flutter_riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
 
   # Local DB
   drift: ^2.31.0
-  sqlite3_flutter_libs: ^0.6.0+eol
+  drift_flutter: ^0.2.8
   path_provider: ^2.1.5
   path: ^1.9.1
 
   # Remote backend
-  supabase_flutter: ^2.12.0
-  #flutter_cache_manager: ^3.4.1
-  #cache_network_image: ^3.4.0
+  supabase_flutter: ^2.12.4
 
   # UI and theming
   flex_color_scheme: ^8.4.0
   flutter_screenutil: ^5.9.3
-  material_symbols_icons: ^4.2906.0
-  font_awesome_flutter: ^10.12.0
+  material_symbols_icons: ^4.2928.1
+  font_awesome_flutter: ^11.0.0
   flex_color_picker: ^3.8.0
   flutter_animate: ^4.5.2
   shimmer: ^3.0.0
-  syncfusion_flutter_datepicker: ^32.2.7
+  syncfusion_flutter_datepicker: ^33.2.5
+  syncfusion_flutter_pdf: ^33.2.5
+  file_selector: ^1.1.0
+  fl_chart: ^1.2.0
+  timely_x:
+    path: ./packages/timely_x_flutter
   infinite_scroll_pagination: ^5.1.1
-  flutter_typeahead: ^5.2.0
-
-  #infinite_calendar_view: ^2.10.1
-  #random_avatar: ^0.0.8
-  #table_calendar: ^3.2.0
-  #calendar_view: ^1.4.0
-  #vibration: ^3.1.4
+  flutter_typeahead: ^6.0.0
 
   # Navigation
   sidebarx: ^0.17.2
   google_nav_bar: ^5.0.7
 
   # Utils
+  talker_flutter: ^5.1.16
+  talker_riverpod_logger: ^5.1.16
+  talker_dio_logger: ^5.1.16
   logging: ^1.3.0
-  connectivity_plus: ^7.0.0
+  connectivity_plus: ^7.1.1
   permission_handler: ^12.0.1
   flutter_secure_storage: ^10.0.0
-  package_info_plus: ^9.0.0
+  package_info_plus: ^9.0.1
   dio: ^5.9.2
   url_launcher: ^6.3.2
+  share_plus: ^12.0.2
+  open_filex: ^4.7.0
   pinput: ^6.0.2
-  flutter_fgbg: ^0.7.1
-  flutter_contacts: ^1.1.9+2
-  shared_preferences: ^2.5.4
+  flutter_fgbg: ^0.8.0
+  flutter_contacts: ^2.0.2
+  shared_preferences: ^2.5.5
   uuid: ^4.5.3
   equatable: ^2.0.8
-
-  # Assets
-  flutter_launcher_icons: ^0.14.4
-  flutter_native_splash: ^2.4.7
+  adaptive_theme: ^3.7.2
+  leak_tracker: ^11.0.2
+  very_good_analysis: ^10.2.0
 
 dev_dependencies:
   flutter_test:
@@ -78,8 +80,15 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
   riverpod_lint: ^3.1.3
+  #custom_lint: ^0.8.1
+
+  # Assets generators
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
+
   drift_dev: ^2.31.0
-  build_runner: ^2.11.1
+  build_runner: ^2.14.1
+  riverpod_generator: ^4.0.3
 
 flutter:
   uses-material-design: true

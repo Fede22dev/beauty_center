@@ -51,7 +51,7 @@ class _ClientsPageState extends State<ClientsPage>
   }
 
   void _onClientTap(final String clientId) {
-    _log.fine('Client tapped: $clientId');
+    _log.finest('Client tapped: $clientId');
     Navigator.push(
       context,
       MaterialPageRoute<bool>(
@@ -61,13 +61,13 @@ class _ClientsPageState extends State<ClientsPage>
       if (result == null) return;
 
       if (result) {
-        _log.fine('Client was deleted');
+        _log.finest('Client was deleted');
       }
     });
   }
 
   Future<void> _onAddClient() async {
-    _log.fine('Add client button pressed');
+    _log.finest('Add client button pressed');
 
     String? action;
 
@@ -142,7 +142,7 @@ class _ClientsPageState extends State<ClientsPage>
     );
 
     if (result == true) {
-      _log.fine(
+      _log.finest(
         'Client was added, list should refresh automatically via stream',
       );
     }
@@ -164,7 +164,7 @@ class _ClientsPageState extends State<ClientsPage>
       });
     }
 
-    _log.fine('build');
+    _log.finest('build');
 
     return Column(
       children: [

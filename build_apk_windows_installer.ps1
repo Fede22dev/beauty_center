@@ -246,7 +246,7 @@ if (-not $SkipWindows)
             ArchitecturesAllowed=x64compatible
             ArchitecturesInstallIn64BitMode=x64compatible
             MinVersion=10.0.17763
-            PrivilegesRequired=lowest
+            PrivilegesRequired=admin
             UninstallDisplayIcon={app}\{#AppExeName}
             UninstallDisplayName={#AppNameDisplay}
             VersionInfoVersion={#AppVersion}
@@ -255,7 +255,9 @@ if (-not $SkipWindows)
             CreateUninstallRegKey=yes
             UpdateUninstallLogAppName=yes
             CloseApplications=yes
+            CloseApplicationsFilter=*.exe
             RestartApplications=no
+            SetupIconFile=windows\runner\Resources\app_icon.ico
 
             [Languages]
             Name: "en"; MessagesFile: "compiler:Default.isl"

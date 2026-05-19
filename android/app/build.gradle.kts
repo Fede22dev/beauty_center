@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         applicationId = "com.fede22dev.beauty_center"
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion //flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
 
         val vCode = (System.currentTimeMillis() / 1000).toInt() % 2000000000
@@ -39,6 +39,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }

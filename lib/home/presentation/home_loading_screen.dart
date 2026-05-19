@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:beauty_center/core/connectivity/connectivity_provider.dart';
+import 'package:beauty_center/core/connectivity/connectivity_providers.dart';
 import 'package:beauty_center/core/localizations/extensions/l10n_extensions.dart';
 import 'package:beauty_center/core/widgets/custom_snackbar.dart';
 import 'package:dio/dio.dart';
@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:talker_dio_logger/talker_dio_logger_interceptor.dart';
+import 'package:talker_dio_logger/talker_dio_logger_settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -45,6 +47,18 @@ class UpdateService {
         BaseOptions(
           connectTimeout: _connectionTimeout,
           receiveTimeout: _connectionTimeout,
+        ),
+      );
+
+      dio.interceptors.add(
+        TalkerDioLogger(
+          talker: AppLogger.talker,
+          settings: const TalkerDioLoggerSettings(
+            printRequestData: true,
+            printResponseData: false, // true se vuoi vedere il JSON di risposta
+            printRequestHeaders: false,
+            printResponseMessage: true,
+          ),
         ),
       );
 

@@ -76,7 +76,7 @@ class ContactSyncHelper {
               lastName: lName,
               phone: rawPhone,
               email: email,
-              type: ContactChangeType.create,
+              type: MyContactChangeType.create,
             ),
           );
         } else if (ContactService.hasChanges(
@@ -92,7 +92,7 @@ class ContactSyncHelper {
               lastName: lName,
               phone: rawPhone,
               email: email,
-              type: ContactChangeType.update,
+              type: MyContactChangeType.update,
               existingContact: existing,
             ),
           );
@@ -129,7 +129,7 @@ class ContactSyncHelper {
 
       for (final change in selectedChanges) {
         try {
-          if (change.type == ContactChangeType.create) {
+          if (change.type == MyContactChangeType.create) {
             await ContactService.createContact(
               firstName: change.firstName,
               lastName: change.lastName,
@@ -137,7 +137,7 @@ class ContactSyncHelper {
               email: change.email,
             );
             created++;
-          } else if (change.type == ContactChangeType.update &&
+          } else if (change.type == MyContactChangeType.update &&
               change.existingContact != null) {
             await ContactService.updateContact(
               contact: change.existingContact!,
@@ -199,7 +199,7 @@ class ContactSyncHelper {
     final String? email,
   }) async {
     if (_isInteractionActive) {
-      _log.fine(
+      _log.finest(
         'Sync UI interaction already active. Skipping duplicate request.',
       );
       return;
@@ -214,18 +214,13 @@ class ContactSyncHelper {
       _isInteractionActive = true;
 
       final contacts = await ContactService.getAllContacts();
-      final normPhone = ContactService.normalizePhone(phoneNumber);
 
-      Contact? existing;
-      for (final c in contacts) {
-        if (c.phones.any(
-          (final p) =>
-              ContactService.normalizePhone(p.normalizedNumber) == normPhone,
-        )) {
-          existing = c;
-          break;
-        }
-      }
+      final existing = ContactService.findBestMatch(
+        contacts: contacts,
+        phone: phoneNumber,
+        firstName: firstName,
+        lastName: lastName,
+      );
 
       if (!uiContext.mounted) return;
 
@@ -263,7 +258,7 @@ class ContactSyncHelper {
             context: uiContext,
             barrierDismissible: false,
             builder: (final ctx) => SingleUpdateDialog(
-              existing: existing!,
+              existing: existing,
               newFirstName: firstName,
               newLastName: lastName,
               newPhone: phoneNumber,
@@ -292,7 +287,7 @@ class ContactSyncHelper {
               context: context,
               message: 'Contatto già sincronizzato.',
             );
-            _log.fine('Contact already synced, no action needed.');
+            _log.finest('Contact already synced, no action needed.');
           }
         }
       }
@@ -328,7 +323,7 @@ class ContactSyncHelper {
             c != null &&
             c.phones.any(
               (final p) =>
-                  ContactService.normalizePhone(p.normalizedNumber) ==
+                  ContactService.normalizePhone(p.normalizedNumber!) ==
                   normPhone,
             ),
         orElse: () => null,
@@ -365,10 +360,11 @@ class ContactSyncHelper {
     if (!await ContactService.requestPermission()) return null;
 
     try {
-      final contact = await FlutterContacts.openExternalPick();
-      if (contact == null) return null;
+      final id = await FlutterContacts.native.showPicker();
+      if (id == null) return null;
 
-      final name = contact.name;
+      final contact = await FlutterContacts.get(id);
+      final name = contact!.name;
       final phone = contact.phones.isNotEmpty
           ? contact.phones.first.number
           : '';
@@ -378,12 +374,13 @@ class ContactSyncHelper {
 
       return Client(
         id: 'NOTUSED',
-        firstName: name.first,
-        lastName: name.last,
+        firstName: name!.first!,
+        lastName: name.last!,
         phoneNumber: phone,
         email: email,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
+        isActive: true,
       );
     } catch (e) {
       _log.warning('Pick contact error', e);

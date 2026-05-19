@@ -1,15 +1,16 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-/// Notifier to track if app is in foreground or background
-class AppLifecycleNotifier extends Notifier<bool> {
+part 'background_provider.g.dart';
+
+@riverpod
+class AppIsInForeground extends _$AppIsInForeground {
   @override
-  bool build() => true; // Start as foreground
+  bool build() {
+    ref.keepAlive();
+    return true; // Stato iniziale: foreground
+  }
 
   void setForeground() => state = true;
 
   void setBackground() => state = false;
 }
-
-final appIsInForegroundProvider = NotifierProvider<AppLifecycleNotifier, bool>(
-  AppLifecycleNotifier.new,
-);

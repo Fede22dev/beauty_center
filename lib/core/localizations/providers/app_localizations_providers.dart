@@ -1,28 +1,30 @@
 import 'dart:ui';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../l10n/app_localizations.dart';
 
-/// System locale provider - automatically detects and provides system locale
-final systemLocaleProvider = Provider<Locale>(
-  (_) => PlatformDispatcher.instance.locale,
-);
+part 'app_localizations_providers.g.dart';
 
-/// Supported locales list (read-only)
-final supportedLocalesProvider = Provider<List<Locale>>(
-  (_) => AppLocalizations.supportedLocales,
-);
+/// System locale provider
+@riverpod
+Locale systemLocale(final Ref ref) => PlatformDispatcher.instance.locale;
+
+/// Supported locales list
+@riverpod
+List<Locale> supportedLocales(final Ref ref) =>
+    AppLocalizations.supportedLocales;
 
 /// This determines which locale is actually being used by the app
-final effectiveLocaleProvider = Provider<Locale>((final ref) {
+@riverpod
+Locale effectiveLocale(final Ref ref) {
   final systemLocale = ref.watch(systemLocaleProvider);
   final supportedLocales = ref.watch(supportedLocalesProvider);
 
   return _bestMatch(systemLocale, supportedLocales);
-});
+}
 
-/// Helper function to find best locale match
+/// Helper function (non serve annotazione perché è una funzione privata standard)
 Locale _bestMatch(
   final Locale systemLocale,
   final List<Locale> supportedLocales,

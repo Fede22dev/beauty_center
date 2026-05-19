@@ -30,7 +30,6 @@ linter:
     - avoid_implementing_value_types
     - avoid_init_to_null
     - avoid_js_rounded_ints
-    - avoid_null_checks_in_equality_operators
     - avoid_positional_boolean_parameters
     #- avoid_print
     - avoid_private_typedef_functions
@@ -114,7 +113,6 @@ linter:
     - prefer_final_fields
     - prefer_final_in_for_each
     - prefer_final_locals
-    - prefer_final_parameters
     - prefer_for_elements_to_map_fromIterable
     - prefer_foreach
     - prefer_function_declarations_over_variables
@@ -196,3 +194,4 @@ linter:
     - use_to_and_as_if_applicable
     - valid_regexps
     - void_checks
+    - unnecessary_library_directive

@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.41.2'
+  FLUTTER_VERSION: '3.41.6'
   JAVA_VERSION: '17'
 
 jobs:
@@ -31,6 +31,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Check Secrets
+        run: |
+          if [ -z "${{ secrets.ADMIN_PIN }}" ]; then
+            echo "Error: ADMIN_PIN secret is missing!"
+            exit 1
+          fi
 
       - name: Extract app info
         id: app_info
@@ -189,7 +196,7 @@ jobs:
             ArchitecturesAllowed=x64compatible
             ArchitecturesInstallIn64BitMode=x64compatible
             MinVersion=10.0.17763
-            PrivilegesRequired=lowest
+            PrivilegesRequired=admin
             UninstallDisplayIcon={app}\{#AppExeName}
             UninstallDisplayName={#AppNameDisplay}
             VersionInfoVersion={#AppVersion}
@@ -198,7 +205,9 @@ jobs:
             CreateUninstallRegKey=yes
             UpdateUninstallLogAppName=yes
             CloseApplications=yes
+            CloseApplicationsFilter=*.exe
             RestartApplications=no
+            SetupIconFile=windows\runner\Resources\app_icon.ico
           
             [Languages]
             Name: "en"; MessagesFile: "compiler:Default.isl"
@@ -361,19 +370,15 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-            if [[ -n "$LAST_TAG" ]]; then
-              CHANGELOG=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          {
+            echo 'changelog<<EOF'
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              git log $(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD) --pretty=format:"- %s" --no-merges
             else
-              CHANGELOG=$(git log --pretty=format:"- %s" --no-merges -n 10)
+              echo "Manual release from workflow dispatch"
             fi
-          else
-            CHANGELOG="Manual release from workflow dispatch"
-          fi
-          
-          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
-          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+            echo -e "\nEOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

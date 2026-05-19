@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' hide ContactChangeType;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../models/contact_change_model.dart';
@@ -29,10 +29,10 @@ class _BatchSyncDialogState extends State<BatchSyncDialog> {
 
   void _refreshLists() {
     _creates = widget.changes
-        .where((final c) => c.type == ContactChangeType.create)
+        .where((final c) => c.type == MyContactChangeType.create)
         .toList();
     _updates = widget.changes
-        .where((final c) => c.type == ContactChangeType.update)
+        .where((final c) => c.type == MyContactChangeType.update)
         .toList();
   }
 
@@ -195,7 +195,7 @@ class _ContactTile extends StatelessWidget {
       subtitle: Padding(
         padding: EdgeInsets.only(top: 4.h),
         child:
-            change.type == ContactChangeType.update &&
+            change.type == MyContactChangeType.update &&
                 change.existingContact != null
             ? _DiffSummary(change: change)
             : Text(change.phone, style: TextStyle(fontSize: 12.sp)),
@@ -309,7 +309,9 @@ class FieldDiff {
   final String newValue;
 }
 
-class DiffUtils {
+final class DiffUtils {
+  DiffUtils._();
+
   static List<FieldDiff> calculateDiffs({
     required final Contact existing,
     required final String newFirst,
@@ -320,7 +322,7 @@ class DiffUtils {
     final diffs = <FieldDiff>[];
 
     // Name Check
-    final oldName = '${existing.name.first} ${existing.name.last}'.trim();
+    final oldName = '${existing.name!.first} ${existing.name!.last}'.trim();
     final newName = '$newFirst $newLast'.trim();
     if (oldName != newName) {
       diffs.add(FieldDiff(label: 'Nome', oldValue: oldName, newValue: newName));
@@ -330,7 +332,7 @@ class DiffUtils {
     final normPhone = ContactService.normalizePhone(newPhone);
     final phoneChanged = !existing.phones.any(
       (final p) =>
-          ContactService.normalizePhone(p.normalizedNumber) == normPhone,
+          ContactService.normalizePhone(p.normalizedNumber!) == normPhone,
     );
 
     if (phoneChanged) {

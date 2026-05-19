@@ -25,9 +25,9 @@ class _HomePageMobileState extends ConsumerState<HomePageMobile> {
   void initState() {
     super.initState();
 
-    final initialTabIndex = AppTabs.defaultTab.index;
-
     _tabKeys = List.generate(AppTabs.values.length, (_) => GlobalKey());
+
+    final initialTabIndex = AppTabs.defaultTab.index;
     _pageController = PageController(initialPage: initialTabIndex);
     _navScrollController = ScrollController();
 

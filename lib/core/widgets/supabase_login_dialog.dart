@@ -31,12 +31,15 @@ class _SupabaseLoginDialogState extends ConsumerState<SupabaseLoginDialog> {
   var _showAnonKey = false;
   var _showPassword = false;
 
+  void _onAnonKeyChanged() => setState(() {});
+  void _onPasswordChanged() => setState(() {});
+
   @override
   void initState() {
     super.initState();
 
-    _anonKeyController.addListener(() => setState(() {}));
-    _passwordController.addListener(() => setState(() {}));
+    _anonKeyController.addListener(_onAnonKeyChanged);
+    _passwordController.addListener(_onPasswordChanged);
 
     _loadSavedCredentials();
   }
@@ -91,6 +94,8 @@ class _SupabaseLoginDialogState extends ConsumerState<SupabaseLoginDialog> {
 
   @override
   void dispose() {
+    _anonKeyController.removeListener(_onAnonKeyChanged);
+    _passwordController.removeListener(_onPasswordChanged);
     _urlController.dispose();
     _anonKeyController.dispose();
     _emailController.dispose();

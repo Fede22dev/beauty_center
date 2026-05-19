@@ -1,4 +1,4 @@
-import 'package:beauty_center/core/connectivity/connectivity_provider.dart';
+import 'package:beauty_center/core/connectivity/connectivity_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -64,7 +64,7 @@ class _SectionSearchAddBarState extends ConsumerState<SectionSearchAddBar> {
               focusNode: _searchFocusNode,
               onChanged: widget.onSearchChanged,
               decoration: InputDecoration(
-                hintText: 'Cerca cliente',
+                hintText: 'Cerca cliente (Smart Search: "Mria" = "Maria")',
                 prefixIcon: Icon(
                   Symbols.search_rounded,
                   size: kIsWindows ? 22 : 22.sp,

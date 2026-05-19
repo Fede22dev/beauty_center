@@ -8,12 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../../../core/connectivity/connectivity_provider.dart';
+import '../../../../../core/connectivity/connectivity_providers.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/app_database.dart';
+import '../../../../../core/widgets/app_error_view.dart';
 import '../../../../../core/widgets/custom_snackbar.dart';
 import '../../../../../core/widgets/section_card.dart';
-import '../../providers/settings_provider.dart';
+import '../../../providers/settings_providers.dart';
 
 class SettingsCabinsSection extends ConsumerWidget {
   const SettingsCabinsSection({required this.cabins, super.key});
@@ -26,7 +27,28 @@ class SettingsCabinsSection extends ConsumerWidget {
 
     final isOffline = ref.watch(isConnectionUnusableProvider);
     final isDisconnectedSup = ref.watch(supabaseAuthProvider).isDisconnected;
-    final actions = ref.read(settingsActionsProvider);
+    final actionsProvider = ref.watch(settingsActionsProvider);
+
+    final maxCabinsAsync = ref.watch(maxCabinsStreamProvider);
+
+    // Error handling
+    if (maxCabinsAsync.hasError) {
+      return AppErrorView(
+        error: maxCabinsAsync.error.toString(),
+        onRetry: () {
+          // Invalidate streams to retry
+          ref.invalidate(maxCabinsStreamProvider);
+        },
+      );
+    }
+
+    // Loading state
+    if (!maxCabinsAsync.hasValue) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Extract data
+    final maxCabinsCount = maxCabinsAsync.value!;
 
     return SectionCard(
       child: Column(
@@ -59,20 +81,19 @@ class SettingsCabinsSection extends ConsumerWidget {
               SizedBox(width: kIsWindows ? 12 : 12.w),
               Expanded(
                 child: Slider(
-                  min: kMinCabinsCount.toDouble(),
-                  max: kMaxCabinsCount.toDouble(),
-                  divisions: (kMaxCabinsCount - kMinCabinsCount)
-                      .clamp(1, double.infinity)
-                      .toInt(),
+                  min: 1,
+                  max: maxCabinsCount.toDouble(),
+                  divisions: maxCabinsCount > kMinCabinsCount
+                      ? (maxCabinsCount - kMinCabinsCount)
+                      : 1,
                   value: cabins.length.toDouble().clamp(
                     kMinCabinsCount.toDouble(),
-                    kMaxCabinsCount.toDouble(),
+                    maxCabinsCount.toDouble(),
                   ),
-                  label:
-                      '${cabins.length.clamp(kMinCabinsCount, kMaxCabinsCount)}',
+                  label: '${cabins.length.clamp(1, maxCabinsCount)}',
                   onChanged: isOffline || isDisconnectedSup
                       ? null
-                      : (final v) => actions.setCabinsCount(v.round()),
+                      : (final v) => actionsProvider.setCabinsCount(v.round()),
                 ),
               ),
               SizedBox(
@@ -131,7 +152,7 @@ class _CabinRow extends ConsumerWidget {
             radius: kIsWindows ? 22 : 22.r,
             backgroundColor: colorScheme.primary,
             child: Text(
-              cabin.displayNumber,
+              cabin.id.toString(),
               style: TextStyle(
                 fontSize: kIsWindows ? 16 : 16.sp,
                 fontWeight: FontWeight.bold,
@@ -204,8 +225,8 @@ class _CabinRow extends ConsumerWidget {
         ),
         contentPadding: EdgeInsets.all(kIsWindows ? 20 : 20.w),
         content: StatefulBuilder(
-          builder: (final context, final setState) => SizedBox(
-            width: 0.85.sw,
+          builder: (final context, final setState) => Container(
+            constraints: BoxConstraints(maxWidth: kIsWindows ? 350 : 0.85.sw),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

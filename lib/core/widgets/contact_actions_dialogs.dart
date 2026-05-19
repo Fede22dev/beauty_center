@@ -131,7 +131,7 @@ class ContactActions {
               onTap: () => Navigator.pop(context, PhoneAction.sms),
             ),
             ListTile(
-              leading: const Icon(
+              leading: const FaIcon(
                 FontAwesomeIcons.whatsapp,
                 color: Colors.green,
               ),

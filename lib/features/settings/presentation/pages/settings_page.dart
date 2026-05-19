@@ -6,11 +6,12 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/tabs/app_tabs.dart';
-import '../providers/settings_provider.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../providers/settings_providers.dart';
 import '../widgets/sections/settings_cabins_section.dart';
 import '../widgets/sections/settings_operators_section.dart';
+import '../widgets/sections/settings_reset_db_section.dart';
 import '../widgets/sections/settings_work_hours_section.dart';
-import '../widgets/settings_error_view.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -24,7 +25,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   @override
   bool get wantKeepAlive => true;
 
-  static final log = AppLogger.getLogger(name: 'SettingsPage');
+  static final _log = AppLogger.getLogger(name: 'SettingsPage');
 
   late final ScrollController _scrollController;
   late final double _scrollbarThickness;
@@ -48,7 +49,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     super.build(context);
 
     // Watch data streams
-    final cabinsAsync = ref.watch(cabinsStreamProvider);
+    final cabinsAsync = ref.watch(activeCabinsStreamProvider);
     final operatorsAsync = ref.watch(operatorsStreamProvider);
     final workHoursAsync = ref.watch(workHoursStreamProvider);
 
@@ -56,14 +57,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     if (cabinsAsync.hasError ||
         operatorsAsync.hasError ||
         workHoursAsync.hasError) {
-      return SettingsErrorView(
+      return AppErrorView(
         error:
             (cabinsAsync.error ?? operatorsAsync.error ?? workHoursAsync.error)
                 .toString(),
         onRetry: () {
           // Invalidate all streams to retry
           ref
-            ..invalidate(cabinsStreamProvider)
+            ..invalidate(activeCabinsStreamProvider)
             ..invalidate(operatorsStreamProvider)
             ..invalidate(workHoursStreamProvider);
         },
@@ -95,7 +96,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       });
     }
 
-    log.fine('build');
+    _log.finest('build');
 
     return SecurePageWrapper(
       pageColor: AppTabs.settings.color,
@@ -127,6 +128,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   SettingsOperatorsSection(operators: operators),
                   SizedBox(height: kIsWindows ? 8 : 8.h),
                   SettingsWorkHoursSection(workHours: workHours),
+                  SizedBox(height: kIsWindows ? 24 : 24.h),
+                  const SettingsResetDbSection(),
                   SizedBox(
                     height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
                   ),

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:beauty_center/core/tabs/app_tabs.dart';
 import 'package:beauty_center/core/widgets/custom_snackbar.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
@@ -11,9 +14,10 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/contacts/contact_sync_helper.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/providers/offline_status_provider.dart';
 import '../../../../core/localizations/utils_regions/italy_phone_formatter.dart';
 import '../../../../core/logging/app_logger.dart';
-import '../providers/clients_providers.dart';
+import '../../providers/clients_providers.dart';
 
 class OsmAddress {
   OsmAddress({
@@ -105,14 +109,57 @@ class OsmService {
   );
 
   static CancelToken? _cancelToken;
+  static Timer? _debounceTimer;
+  static final Map<String, List<OsmAddress>> _cache = {};
 
+  /// Search address with debounce and caching to prevent excessive API calls
   static Future<List<OsmAddress>> searchAddress(final String query) async {
     if (query.trim().length < 3) return [];
 
+    // Check cache first
+    final cacheKey = query.trim().toLowerCase();
+    if (_cache.containsKey(cacheKey)) {
+      return _cache[cacheKey]!;
+    }
+
+    // Cancel previous timer if exists
+    _debounceTimer?.cancel();
+
+    // Cancel previous request
     if (_cancelToken != null && !_cancelToken!.isCancelled) {
       _cancelToken!.cancel('New query started');
     }
     _cancelToken = CancelToken();
+
+    // Debounce: wait 500ms before making the actual request
+    final completer = Completer<List<OsmAddress>>();
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final results = await _performSearch(query, _cancelToken!);
+        // Cache results
+        _cache[cacheKey] = results;
+        // Limit cache size to prevent memory issues
+        if (_cache.length > 50) {
+          _cache.remove(_cache.keys.first);
+        }
+        if (!completer.isCompleted) {
+          completer.complete(results);
+        }
+      } catch (e) {
+        if (!completer.isCompleted) {
+          completer.completeError(e);
+        }
+      }
+    });
+
+    return completer.future;
+  }
+
+  static Future<List<OsmAddress>> _performSearch(
+    final String query,
+    final CancelToken cancelToken,
+  ) async {
 
     try {
       final response = await _dio.get<List<dynamic>>(
@@ -126,7 +173,7 @@ class OsmService {
           'layer': 'address',
           'dedupe': 1,
         },
-        cancelToken: _cancelToken,
+        cancelToken: cancelToken,
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -178,7 +225,12 @@ class AddEditClientDialog extends ConsumerStatefulWidget {
 }
 
 class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
-  static final log = AppLogger.getLogger(name: 'AddEditClientDialog');
+  static final _log = AppLogger.getLogger(name: 'AddEditClientDialog');
+
+  static final _nameRegex = RegExp(
+    r"^[a-zA-ZàáâäãåąčćęèéêëėįìíîïłńòóôöõøùúûüųūÿýżźñçčšžÀÁÂÄÃÅĄĆČĖĘÈÉÊËÌÍÎÏĮŁŃÒÓÔÖÕØÙÚÛÜŲŪŸÝŻŹÑßÇŒÆČŠŽ∂ð ,.'-]+$",
+  );
+  static final _emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
 
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _firstNameController;
@@ -245,8 +297,7 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
   }
 
   Future<void> _selectBirthDate() async {
-    final initialDate =
-        _birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 25));
+    final initialDate = _birthDate ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
@@ -316,7 +367,7 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
           email: trimmedEmail.isEmpty ? null : trimmedEmail,
         ).catchError(
           (final Object e) =>
-              log.warning('Contact sync failed but client saved', e),
+              _log.warning('Contact sync failed but client saved', e),
         );
       }
 
@@ -331,7 +382,7 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
         okColor: AppTabs.clients.color,
       );
     } catch (e, stackTrace) {
-      log.severe('Error saving client', e, stackTrace);
+      _log.severe('Error saving client', e, stackTrace);
       if (mounted) {
         showCustomSnackBar(
           context: context,
@@ -347,6 +398,7 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
   @override
   Widget build(final BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final offlineReadOnly = ref.watch(isOfflineReadOnlyProvider);
 
     return Dialog(
       child: ConstrainedBox(
@@ -420,14 +472,22 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                         decoration: const InputDecoration(
                           labelText: 'Nome *',
                           prefixIcon: Icon(Symbols.person_outline_rounded),
+                          helperText:
+                              'Minimo $kMinClientFirstNameLength, massimo $kMaxClientFirstNameLength caratteri',
                         ),
-                        maxLength: 100,
-                        minLines: 1,
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.words,
+                        maxLength: kMaxClientFirstNameLength,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r"[a-zA-Zà-ÿÀ-ß\s'.-]"),
+                          ),
+                          // Blocca numeri e simboli strani
+                        ],
                         validator: (final value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Inserisci il nome';
+                          final trimmed = value?.trim() ?? '';
+                          if (trimmed.isEmpty) return 'Il nome è obbligatorio';
+                          if (!_nameRegex.hasMatch(trimmed)) {
+                            return 'Nome non valido (caratteri speciali non ammessi)';
                           }
                           return null;
                         },
@@ -442,14 +502,23 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                         decoration: const InputDecoration(
                           labelText: 'Cognome *',
                           prefixIcon: Icon(Symbols.person_outline_rounded),
+                          helperText:
+                              'Minimo $kMinClientLastNameLength, massimo $kMaxClientLastNameLength caratteri',
                         ),
-                        maxLength: 100,
-                        minLines: 1,
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.words,
+                        maxLength: kMaxClientLastNameLength,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r"[a-zA-Zà-ÿÀ-ß\s'.-]"),
+                          ),
+                          // Blocca numeri e simboli strani
+                        ],
                         validator: (final value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Inserisci il cognome';
+                          final trimmed = value?.trim() ?? '';
+                          if (trimmed.isEmpty)
+                            return 'Il cognome è obbligatorio';
+                          if (!_nameRegex.hasMatch(trimmed)) {
+                            return 'Cognome non valido (caratteri speciali non ammessi)';
                           }
                           return null;
                         },
@@ -501,20 +570,27 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                           labelText: 'Telefono *',
                           prefixIcon: Icon(Symbols.phone_rounded),
                           hintText: '+39 3331234567',
+                          helperText:
+                              'Min $kMinClientPhoneNumberLength, max $kMaxClientPhoneNumberLength caratteri',
                         ),
-                        maxLength: 20,
-                        minLines: 1,
-                        maxLines: null,
+                        maxLength: kMaxClientPhoneNumberLength,
                         keyboardType: TextInputType.phone,
                         inputFormatters: [ItalyPhoneFormatter()],
+                        // Usa il tuo formatter esistente
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                         validator: (final value) {
-                          if (value == null || value.trim().isEmpty) {
+                          final cleaned = value?.trim() ?? '';
+                          if (cleaned.isEmpty) {
                             return 'Inserisci il numero di telefono';
                           }
+                          if (cleaned.length < kMinClientPhoneNumberLength) {
+                            return 'Il numero deve avere almeno $kMinClientPhoneNumberLength cifre';
+                          }
 
-                          final regex = RegExp(r'^\+39 [0-9]{10}$');
-                          if (!regex.hasMatch(value.trim())) {
-                            return 'Formato non valido: usa +39 e 10 cifre';
+                          // RegEx specifica per il tuo formato +39 0000000000
+                          final regex = RegExp(r'^\+39 [0-9]{9,15}$');
+                          if (!regex.hasMatch(cleaned)) {
+                            return 'Formato non valido: usa +39 seguito dal numero';
                           }
                           return null;
                         },
@@ -562,19 +638,24 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                               decoration: const InputDecoration(
                                 labelText: 'Email',
                                 prefixIcon: Icon(Symbols.email_rounded),
+                                helperText:
+                                    'Minimo $kMinClientEmailLength, massimo $kMaxClientEmailLength caratteri',
                               ),
-                              minLines: 1,
-                              maxLength: 200,
+                              maxLength: kMaxClientEmailLength,
                               keyboardType: TextInputType.emailAddress,
+                              autovalidateMode:
+                                  AutovalidateMode.onUserInteraction,
                               enabled: !_isLoading,
                               validator: (final value) {
-                                if (value != null && value.isNotEmpty) {
-                                  final emailRegex = RegExp(
-                                    r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$',
-                                  );
-                                  if (!emailRegex.hasMatch(value)) {
-                                    return 'Email non valida';
-                                  }
+                                if (value == null || value.isEmpty) {
+                                  return null; // Opzionale nel DB
+                                }
+                                final trimmed = value.trim();
+                                if (trimmed.length < kMinClientEmailLength) {
+                                  return 'Email troppo corta';
+                                }
+                                if (!_emailRegex.hasMatch(trimmed)) {
+                                  return 'Inserisci un indirizzo email valido';
                                 }
                                 return null;
                               },
@@ -635,6 +716,19 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                               enabled: !_isLoading,
                               minLines: 1,
                               maxLines: null,
+                              maxLength: kMaxClientAddressLength,
+                              validator: (final value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return null; // Indirizzo opzionale
+                                }
+
+                                if (value.trim().length >
+                                    kMaxClientAddressLength) {
+                                  return 'Indirizzo troppo lungo';
+                                }
+
+                                return null;
+                              },
                             ),
                         itemBuilder: (final context, final address) => ListTile(
                           leading: Icon(
@@ -690,6 +784,7 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                           alignLabelWithHint: true,
                           hintText: 'Informazioni aggiuntive sul cliente...',
                         ),
+                        maxLength: kMaxClientNotesLength,
                         minLines: 1,
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
@@ -720,8 +815,25 @@ class _AddEditClientDialogState extends ConsumerState<AddEditClientDialog> {
                     child: const Text('Annulla'),
                   ),
                   SizedBox(width: kIsWindows ? 12 : 12.w),
+                  if (offlineReadOnly)
+                    Container(
+                      margin: EdgeInsets.only(right: kIsWindows ? 12 : 12.w),
+                      padding: EdgeInsets.symmetric(horizontal: kIsWindows ? 8 : 8.w, vertical: kIsWindows ? 4 : 4.sp),
+                      decoration: BoxDecoration(
+                        color: colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(kIsWindows ? 8 : 8.r),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Symbols.wifi_off_rounded, size: kIsWindows ? 14 : 14.sp, color: colorScheme.onErrorContainer),
+                          SizedBox(width: kIsWindows ? 4 : 4.w),
+                          Text('Offline', style: TextStyle(fontSize: kIsWindows ? 12 : 12.sp, color: colorScheme.onErrorContainer)),
+                        ],
+                      ),
+                    ),
                   FilledButton.icon(
-                    onPressed: _isLoading ? null : _saveClient,
+                    onPressed: (_isLoading || offlineReadOnly) ? null : _saveClient,
                     icon: _isLoading
                         ? SizedBox(
                             width: kIsWindows ? 20 : 20.sp,

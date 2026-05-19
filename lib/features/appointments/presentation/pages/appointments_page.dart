@@ -1,11 +1,12 @@
-//file: appointments_page.dart
-import 'package:beauty_center/features/appointments/presentation/widgets/sections/appointments_agenda.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:timely_x/timely_x.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../widgets/sections/appointments_agenda.dart';
+import '../widgets/sections/appointments_top_bar.dart';
 
 class AppointmentsPage extends ConsumerStatefulWidget {
   const AppointmentsPage({super.key});
@@ -19,82 +20,56 @@ class _AppointmentsPageState extends ConsumerState<AppointmentsPage>
   @override
   bool get wantKeepAlive => true;
 
-  static final log = AppLogger.getLogger(name: 'AppointmentsPage');
+  static final _log = AppLogger.getLogger(name: 'AppointmentsPage');
 
-  late final ScrollController _scrollController;
-  late final double _scrollbarThickness;
-  var _isScrollbarNeeded = false;
+  late final CalendarController _calendarController;
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
-    _scrollbarThickness = kIsWindows ? 8.0 : 0.0;
+    _calendarController = CalendarController(
+      initialDate: DateTime.now(),
+      config: const CalendarConfig(viewType: CalendarViewType.day),
+    );
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _calendarController.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(final BuildContext context) {
+  Widget build(BuildContext context) {
     super.build(context);
+    _log.finest('build');
 
-    // Scrollbar visibility management (Windows only)
-    if (_scrollbarThickness > 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final isNeeded =
-            _scrollController.hasClients &&
-            _scrollController.position.maxScrollExtent > 0;
-        if (isNeeded != _isScrollbarNeeded && mounted) {
-          setState(() => _isScrollbarNeeded = isNeeded);
-        }
-      });
-    }
+    return Column(
+      children: [
+        // Top bar
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            kIsWindows ? 16 : 8.w,
+            kIsWindows ? 10 : 8.h,
+            kIsWindows ? 16 : 8.w,
+            kIsWindows ? 8 : 6.h,
+          ),
+          child: AppointmentsTopBar(_calendarController),
+        ),
 
-    log.fine('build');
-
-    // Future.delayed(const Duration(seconds: 5), () {
-    //   _scrollController.animateTo(
-    //     300,
-    //     duration: const Duration(milliseconds: 500),
-    //     curve: Curves.easeIn,
-    //   );
-    // });
-
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: kIsWindows ? 10 : 0),
-      child: Scrollbar(
-        controller: _scrollController,
-        thickness: _scrollbarThickness,
-        thumbVisibility: kIsWindows,
-        interactive: kIsWindows,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          child: AnimatedPadding(
-            duration: kDefaultAppAnimationsDuration,
-            curve: Curves.easeOutCubic,
+        // Agenda (calendario)
+        Expanded(
+          child: Padding(
             padding: EdgeInsets.fromLTRB(
-              kIsWindows ? 16 : 8.w,
+              kIsWindows ? 16 : 0,
               0,
-              (kIsWindows ? 16 : 8.w) +
-                  (_isScrollbarNeeded ? _scrollbarThickness : 0),
-              0,
+              kIsWindows ? 16 : 0,
+              kIsWindows ? 8 : 80.h,
             ),
-            child: Column(
-              children: [
-                SizedBox(height: kIsWindows ? 0 : 8.h),
-                const AppointmentsAgenda(),
-                SizedBox(
-                  height: kIsWindows ? 0 : kBottomNavigationBarHeight + 28.h,
-                ),
-              ],
-            ),
+            child: AppointmentsAgenda(_calendarController),
           ),
         ),
-      ),
+      ],
     );
   }
 }
